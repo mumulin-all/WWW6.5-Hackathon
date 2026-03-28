@@ -39,12 +39,13 @@
 
 ---
 
+
 ## 🔧Tech Stack丨技术栈 
 * **前端:** React 19 / Next.js: 利用 SSR (服务端渲染) 优化救助案例的社交分享预览与首屏加载速度。TypeScript: 强类型驱动，确保救助状态机（发现-送医-领养）逻辑的严密性与可维护性。
 * **UI/UX 设计 :** Tailwind CSS: 原子化样式管理，实现高性能、响应式的 Mobile-First 救助现场操作界面。Web3 Aesthetic: 采用 Glassmorphism (玻璃拟态) 与深色模式，提升在高对比度户外场景下的阅读体验。
 * **数据与存储 :** Supabase / Node.js: 提供实时数据同步 (Real-time DB)，实现多方志愿者协作状态的即时刷新。IPFS (Pinata): 去中心化内容寻址存储，确保医疗票据、检查报告等核心凭证的永久性与不可篡改性。
 * **协议与基础设施:** Avalanche (Fuji Testnet): 利用其 Sub-second Finality (亚秒级确认) 特性，提供极致丝滑的链上交互存证体验。Solidity: 核心业务合约，实现 CaseRegistry (案例管理) 与 SBT (身份勋章) 逻辑。Wagmi / Viem/MetaMask: 基于 React Hooks 的轻量化方案，管理 MetaMask 钱包连接与合约调用。
-* 
+
 ---
 
 ## 🔮Future Work丨未来规划
@@ -54,3 +55,15 @@
 4. **AI 辅助核验：** 引入 AI 自动识别医疗票据，进一步提升资金释放的自动化效率。   
 
 ---
+## 📂 项目结构 (Project Structure)
+```text
+src/
+├── components/       # 原子化 UI (CaseCard, MilestoneTimeline, BadgeGallery)
+├── contracts/        # 核心合约 (LifePassport.sol, DisbursementControl.sol)
+├── services/         # 业务封装 (IPFS_Uploader, Avalanche_Relayer)
+├── hooks/            # 自定义状态钩子 (useRescueFlow, useOnChainProof)
+└── types/            # 领域模型定义 (RescueCase, VolunteerRole)
+
+---
+
+
