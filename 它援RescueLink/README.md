@@ -39,57 +39,18 @@
 
 ---
 
-## ⚙️How It Works丨工作原理 
-* **发起案例:** 救助人创建 Case，上传动物信息、现场情况与当前缺口。
-* **生成页面:** 系统将碎片化信息集中到结构化页面，生成对外可分享的统一入口。
-* **接力协同:** 多方参与者认领任务（如转运、陪诊），持续更新进度并上传凭证。
-* **存证上链:** 对关键摘要进行链上记录，保留可追溯、防篡改的底层信任基础。
-
+## 🔧Tech Stack丨技术栈 
+* **前端:** React 19 / Next.js: 利用 SSR (服务端渲染) 优化救助案例的社交分享预览与首屏加载速度。TypeScript: 强类型驱动，确保救助状态机（发现-送医-领养）逻辑的严密性与可维护性。
+* **UI/UX 设计 :** Tailwind CSS: 原子化样式管理，实现高性能、响应式的 Mobile-First 救助现场操作界面。Web3 Aesthetic: 采用 Glassmorphism (玻璃拟态) 与深色模式，提升在高对比度户外场景下的阅读体验。
+* **数据与存储 :** Supabase / Node.js: 提供实时数据同步 (Real-time DB)，实现多方志愿者协作状态的即时刷新。IPFS (Pinata): 去中心化内容寻址存储，确保医疗票据、检查报告等核心凭证的永久性与不可篡改性。
+* **协议与基础设施:** Avalanche (Fuji Testnet): 利用其 Sub-second Finality (亚秒级确认) 特性，提供极致丝滑的链上交互存证体验。Solidity: 核心业务合约，实现 CaseRegistry (案例管理) 与 SBT (身份勋章) 逻辑。Wagmi / Viem/MetaMask: 基于 React Hooks 的轻量化方案，管理 MetaMask 钱包连接与合约调用。
+* 
 ---
 
-## 📂 项目结构 (Project Structure)
-
-```text
-src/
-├── components/       # 原子化 UI (CaseCard, MilestoneTimeline, BadgeGallery)
-├── contracts/        # 核心合约 (LifePassport.sol, DisbursementControl.sol)
-├── services/         # 业务封装 (IPFS_Uploader, Avalanche_Relayer)
-├── hooks/            # 自定义状态钩子 (useRescueFlow, useOnChainProof)
-└── types/            # 领域模型定义 (RescueCase, VolunteerRole)
+## 🔮Future Work丨未来规划
+1. **信用体系：** 建立基于 SBT 的志愿者等级与民间组织信誉档案，将救助轨迹沉淀为链上信用资产,识别长期稳定的合作伙伴并起到积极的激励作用。 
+2. **校园与社会协作：** 对接高校志愿服务体系与品牌方接口，实现公益时长认证与救助资源的高效匹配。
+3. **组织赋能：** 打造面向多 Case 的组织中台与贡献者个人主页，提升大规模救助的数字化管理能力。
+4. **AI 辅助核验：** 引入 AI 自动识别医疗票据，进一步提升资金释放的自动化效率。   
 
 ---
-
-### 🛠️ Tech Stack丨技术栈
-
-#### 前端
-React 19 / Next.js: 利用 SSR (服务端渲染) 优化救助案例的社交分享预览与首屏加载速度。
-
-TypeScript: 强类型驱动，确保救助状态机（发现-送医-领养）逻辑的严密性与可维护性。
-
-#### UI/UX 设计 
-Tailwind CSS: 原子化样式管理，实现高性能、响应式的 Mobile-First 救助现场操作界面。
-
-Web3 Aesthetic: 采用 Glassmorphism (玻璃拟态) 与深色模式，提升在高对比度户外场景下的阅读体验。
-
-#### 数据与存储 
-Supabase / Node.js: 提供实时数据同步 (Real-time DB)，实现多方志愿者协作状态的即时刷新。
-
-IPFS (Pinata): 去中心化内容寻址存储，确保医疗票据、检查报告等核心凭证的永久性与不可篡改性。
-
-#### 协议与基础设施
-Avalanche (Fuji Testnet): 利用其 Sub-second Finality (亚秒级确认) 提供极致丝滑的链上交互存证体验。
-
-Solidity: 核心业务合约，实现 CaseRegistry (案例管理) 与 SBT (身份勋章) 逻辑。
-
-Wagmi / Viem/MetaMask: 基于 React Hooks 的轻量化方案，管理 MetaMask 钱包连接与合约调用。
-
-### 🔮Future Work丨未来规划
-
-信用体系:建立基于 SBT 的志愿者等级与民间组织信誉档案，将救助轨迹沉淀为链上信用资产,识别长期稳定的合作伙伴并起到积极的激励作用。
-
-校园与社会协作: 对接高校志愿服务体系与品牌方接口，实现公益时长认证与救助资源的高效匹配。
-
-组织赋能: 打造面向多 Case 的组织中台与贡献者个人主页，提升大规模救助的数字化管理能力。
-
-AI 辅助核验: 引入 AI 自动识别医疗票据，进一步提升资金释放的自动化效率。
-
