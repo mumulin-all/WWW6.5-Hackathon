@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semaphore - 信号弹功能预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background-color: #0F0F1A;
+        }
+        
+        /* 浮动按钮动画 */
+        .fab-btn:hover svg {
+            transform: rotate(90deg);
+        }
+        
+        /* 淡入动画 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        /* 脉冲动画 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* 旋转动画 */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* 内容编辑器占位符 */
+        [contenteditable]:empty:before {
+            content: attr(data-placeholder);
+            color: #6B7280;
+            cursor: text;
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1A1A2E;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #2A2A4A;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3A3A5A;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-[#E8E4F0]">
+    <!-- 首页视图 -->
+    <div id="home-view" class="min-h-screen">
+        <!-- 顶部导航 -->
+        <header class="sticky top-0 z-40 bg-[#0F0F1A]/80 backdrop-blur-md border-b border-[#1A1A2E]">
+            <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+                <h1 class="text-xl font-bold text-[#C4A85A]">Semaphore</h1>
+                <div class="flex items-center gap-4">
+                    <button class="text-gray-400 hover:text-[#E8E4F0] transition-colors">发现</button>
+                    <button class="text-gray-400 hover:text-[#E8E4F0] transition-colors">我的</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="max-w-4xl mx-auto px-6 py-12">
+            <!-- 欢迎/空状态 -->
+            <div class="text-center space-y-6 py-20">
+                <div class="w-32 h-32 mx-auto bg-[#1A1A2E] rounded-full flex items-center justify-center">
+                    <svg class="w-16 h-16 text-[#C4A85A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                </div>
+
+                <div class="space-y-2">
+                    <h2 class="text-2xl font-semibold text-[#E8E4F0]">还没有信号弹</h2>
+                    <p class="text-gray-500 max-w-md mx-auto">
+                        点击右下角的 + 按钮，发出你的第一个信号弹<br/>
+                        在人群中寻找那些与你同频的人
+                    </p>
+                </div>
+            </div>
+
+            <!-- 示例：信号弹列表 -->
+            <div class="space-y-6 mt-12">
+                <h3 class="text-lg font-medium text-[#9B7FD4]">热门信号弹</h3>
+                
+                <!-- 信号弹卡片1 -->
+                <div class="bg-[#1A1A2E] border border-[#2A2A4A] rounded-xl p-6 hover:border-[#C4A85A] transition-all duration-300 cursor-pointer">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="text-2xl">🌙</span>
+                        <div>
+                            <div class="text-sm text-gray-500">0x7a3f...8c2d</div>
+                            <div class="text-xs text-gray-600">2 小时前</div>
+                        </div>
+                    </div>
+                    <p class="text-[#E8E4F0] mb-4">
+                        城市的霓虹灯下，我找不到一个可以倾诉的夜晚...
+                    </p>
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 bg-[#2A2A4A] text-gray-400 rounded-full text-xs">孤独</span>
+                        <span class="px-3 py-1 bg-[#2A2A4A] text-gray-400 rounded-full text-xs">失眠</span>
+                    </div>
+                </div>
+
+                <!-- 信号弹卡片2 -->
+                <div class="bg-[#1A1A2E] border border-[#2A2A4A] rounded-xl p-6 hover:border-[#C4A85A] transition-all duration-300 cursor-pointer">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="text-2xl">✒️</span>
+                        <div>
+                            <div class="text-sm text-gray-500">0x9b2e...4f1a</div>
+                            <div class="text-xs text-gray-600">5 小时前</div>
+                        </div>
+                    </div>
+                    <p class="text-[#E8E4F0] mb-4">
+                        有些话只能写在诗里，有些情绪只能在深夜流淌...
+                    </p>
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 bg-[#2A2A4A] text-gray-400 rounded-full text-xs">诗歌</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 浮动按钮 -->
+        <button onclick="showCompose()" class="fab-btn fixed bottom-8 right-8 w-16 h-16 bg-[#C4A85A] hover:bg-[#D4B86A] rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 ease-out group z-50 focus:outline-none focus:ring-2 focus:ring-[#C4A85A] focus:ring-offset-2 focus:ring-offset-[#0F0F1A]">
+            <svg class="w-8 h-8 text-[#0F0F1A] transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span class="absolute right-20 px-4 py-2 bg-[#0F0F1A] text-[#C4A85A] text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">
+                发出信号弹
+            </span>
+        </button>
+    </div>
+
+    <!-- 创建页面视图（默认隐藏） -->
+    <div id="compose-view" class="min-h-screen hidden">
+        <!-- 顶部导航 -->
+        <header class="sticky top-0 z-40 bg-[#0F0F1A]/80 backdrop-blur-md border-b border-[#1A1A2E]">
+            <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+                <button onclick="hideCompose()" class="flex items-center gap-2 text-gray-400 hover:text-[#C4A85A] transition-colors duration-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>返回</span>
+                </button>
+
+                <div class="flex items-center gap-4">
+                    <div class="px-3 py-1.5 bg-[#1A1A2E] rounded-lg flex items-center gap-2">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span class="text-xs text-gray-400">0x7777...7777</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="max-w-4xl mx-auto px-6 py-12">
+            <!-- 页面标题 -->
+            <div class="mb-10 text-center space-y-3">
+                <h1 class="text-3xl font-bold text-[#E8E4F0]">发出你的信号弹</h1>
+                <p class="text-gray-500 max-w-md mx-auto">
+                    在人群中寻找同频者。公开部分吸引目光，私密部分等待知音。
+                </p>
+            </div>
+
+            <!-- 表单 -->
+            <form id="compose-form" class="space-y-8">
+                <!-- 公开引子 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-[#9B7FD4]">🌟 公开引子</label>
+                    <textarea id="hook" placeholder="写下能吸引同频者的第一束光..." class="w-full px-5 py-4 bg-[#1A1A2E] border border-[#2A2A4A] rounded-xl text-[#E8E4F0] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C4A85A] focus:border-transparent transition-all duration-300 resize-none" rows="3" maxlength="200"></textarea>
+                    <div class="text-right text-xs text-gray-500"><span id="hook-count">0</span> / 200</div>
+                </div>
+
+                <!-- 秘密问题 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-[#9B7FD4]">❓ 秘密问题</label>
+                    <input type="text" id="question" placeholder="提出一个只有懂的人才能回答的问题..." class="w-full px-5 py-4 bg-[#1A1A2E] border border-[#2A2A4A] rounded-xl text-[#E8E4F0] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C4A85A] focus:border-transparent transition-all duration-300" maxlength="100" />
+                    <div class="text-right text-xs text-gray-500"><span id="question-count">0</span> / 100</div>
+                </div>
+
+                <!-- 私密正文 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-[#9B7FD4]">🔒 私密正文</label>
+
+                    <!-- 富文本工具栏 -->
+                    <div class="flex flex-wrap gap-2 px-2">
+                        <button type="button" onclick="formatText('formatBlock', 'h2')" class="px-3 py-1.5 text-xs bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-gray-400 hover:text-[#C4A85A] hover:border-[#C4A85A] transition-all duration-200" title="标题">H</button>
+                        <button type="button" onclick="formatText('bold')" class="px-3 py-1.5 text-xs font-bold bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-gray-400 hover:text-[#C4A85A] hover:border-[#C4A85A] transition-all duration-200" title="加粗">B</button>
+                        <button type="button" onclick="formatText('italic')" class="px-3 py-1.5 text-xs italic bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-gray-400 hover:text-[#C4A85A] hover:border-[#C4A85A] transition-all duration-200" title="斜体">I</button>
+                        <button type="button" onclick="formatText('insertUnorderedList')" class="px-3 py-1.5 text-xs bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-gray-400 hover:text-[#C4A85A] hover:border-[#C4A85A] transition-all duration-200" title="无序列表">• 列表</button>
+                        <button type="button" onclick="formatText('insertOrderedList')" class="px-3 py-1.5 text-xs bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-gray-400 hover:text-[#C4A85A] hover:border-[#C4A85A] transition-all duration-200" title="有序列表">1. 列表</button>
+                    </div>
+
+                    <!-- 编辑器 -->
+                    <div id="content-editor" contenteditable="true" data-placeholder="写下你要分享的内容...将被加密后发送" class="w-full min-h-[300px] px-5 py-4 bg-[#1A1A2E] border border-[#2A2A4A] rounded-xl text-[#E8E4F0] focus:outline-none focus:ring-2 focus:ring-[#C4A85A] focus:border-transparent transition-all duration-300" style="word-break: break-word;"></div>
+                </div>
+
+                <!-- 标签选择 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-[#9B7FD4]">🏷️ 选择标签（1-3个）</label>
+                    <div class="flex flex-wrap gap-2" id="tags-container">
+                        <button type="button" onclick="toggleTag('loneliness')" data-tag="loneliness" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">🌙 孤独</button>
+                        <button type="button" onclick="toggleTag('migration')" data-tag="migration" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">🌊 迁徙</button>
+                        <button type="button" onclick="toggleTag('work')" data-tag="work" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">💼 工作</button>
+                        <button type="button" onclick="toggleTag('love')" data-tag="love" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">💫 爱</button>
+                        <button type="button" onclick="toggleTag('insomnia')" data-tag="insomnia" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">🌌 失眠</button>
+                        <button type="button" onclick="toggleTag('poetry')" data-tag="poetry" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">✒️ 诗歌</button>
+                        <button type="button" onclick="toggleTag('growth')" data-tag="growth" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">🌱 成长</button>
+                        <button type="button" onclick="toggleTag('memory')" data-tag="memory" class="tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]">📷 记忆</button>
+                    </div>
+                    <div class="text-xs text-gray-500">已选择: <span id="tags-count">0</span> / 3</div>
+                </div>
+
+                <!-- 错误提示 -->
+                <div id="error-message" class="hidden p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-red-300 text-sm">
+                    ⚠️ <span id="error-text"></span>
+                </div>
+
+                <!-- 提交按钮 -->
+                <button type="submit" id="submit-btn" class="w-full py-4 rounded-xl text-lg font-medium bg-[#C4A85A] hover:bg-[#D4B86A] text-[#0F0F1A] shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300">
+                    发出信号弹
+                </button>
+
+                <!-- 提示信息 -->
+                <div class="text-center text-xs text-gray-600">
+                    💡 公开部分所有人可见，私密部分将被加密，只有回答正确问题的读者才能解锁阅读
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <!-- 成功提示（默认隐藏） -->
+    <div id="success-view" class="min-h-screen hidden flex items-center justify-center">
+        <div class="text-center animate-fade-in transition-opacity duration-1000">
+            <div class="w-24 h-24 bg-[#C4A85A]/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-[#C4A85A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-semibold text-[#C4A85A] mb-2">信号弹已升空！</h2>
+            <p class="text-gray-400">正在返回首页...</p>
+        </div>
+    </div>
+
+    <!-- 控制台日志面板 -->
+    <div id="console-panel" class="fixed bottom-0 left-0 right-0 bg-[#1A1A2E] border-t border-[#2A2A4A] transform translate-y-full transition-transform duration-300 z-50">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex items-center justify-between px-6 py-3 border-b border-[#2A2A4A]">
+                <span class="text-sm font-medium text-[#C4A85A]">📡 模拟控制台日志</span>
+                <button onclick="toggleConsole()" class="text-gray-400 hover:text-[#E8E4F0]">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
+            <div id="console-logs" class="h-48 overflow-y-auto p-6 space-y-2 font-mono text-xs">
+                <!-- 日志会动态插入这里 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制台切换按钮 -->
+    <button onclick="toggleConsole()" class="fixed bottom-24 right-8 px-4 py-2 bg-[#1A1A2E] border border-[#2A2A4A] rounded-lg text-xs text-gray-400 hover:text-[#C4A85A] transition-all duration-300 z-40">
+        📡 模拟日志
+    </button>
+
+    <script>
+        // 状态管理
+        let selectedTags = [];
+        let isPublishing = false;
+        let consoleOpen = false;
+
+        // 模拟日志函数
+        function log(message, type = 'info') {
+            const consoleLogs = document.getElementById('console-logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                'info': 'text-gray-400',
+                'success': 'text-green-400',
+                'warning': 'text-yellow-400',
+                'error': 'text-red-400'
+            };
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = colors[type];
+            logEntry.innerHTML = `<span class="text-gray-600">[${timestamp}]</span> ${message}`;
+            consoleLogs.appendChild(logEntry);
+            consoleLogs.scrollTop = consoleLogs.scrollHeight;
+        }
+
+        // 页面切换
+        function showCompose() {
+            document.getElementById('home-view').classList.add('hidden');
+            document.getElementById('compose-view').classList.remove('hidden');
+            log('📝 进入信号弹创建页面', 'info');
+        }
+
+        function hideCompose() {
+            document.getElementById('compose-view').classList.add('hidden');
+            document.getElementById('home-view').classList.remove('hidden');
+            log('🏠 返回首页', 'info');
+        }
+
+        // 字数统计
+        const hookInput = document.getElementById('hook');
+        const questionInput = document.getElementById('question');
+        const hookCount = document.getElementById('hook-count');
+        const questionCount = document.getElementById('question-count');
+
+        hookInput.addEventListener('input', () => {
+            hookCount.textContent = hookInput.value.length;
+        });
+
+        questionInput.addEventListener('input', () => {
+            questionCount.textContent = questionInput.value.length;
+        });
+
+        // 富文本编辑
+        function formatText(command, value) {
+            document.execCommand(command, false, value);
+            document.getElementById('content-editor').focus();
+        }
+
+        // 标签切换
+        function toggleTag(tagId) {
+            if (isPublishing) return;
+            
+            const btn = document.querySelector(`[data-tag="${tagId}"]`);
+            
+            if (selectedTags.includes(tagId)) {
+                selectedTags = selectedTags.filter(id => id !== tagId);
+                btn.className = 'tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]';
+            } else if (selectedTags.length < 3) {
+                selectedTags.push(tagId);
+                btn.className = 'tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#C4A85A] text-[#0F0F1A] font-medium shadow-lg';
+            }
+            
+            document.getElementById('tags-count').textContent = selectedTags.length;
+            log(`🏷️ 标签变更: ${selectedTags.join(', ') || '无'}`, 'info');
+        }
+
+        // 显示错误
+        function showError(message) {
+            document.getElementById('error-message').classList.remove('hidden');
+            document.getElementById('error-text').textContent = message;
+            log(`❌ 错误: ${message}`, 'error');
+        }
+
+        function hideError() {
+            document.getElementById('error-message').classList.add('hidden');
+        }
+
+        // 控制台切换
+        function toggleConsole() {
+            const panel = document.getElementById('console-panel');
+            consoleOpen = !consoleOpen;
+            panel.classList.toggle('translate-y-full', !consoleOpen);
+        }
+
+        // 模拟延迟
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // 生成随机CID
+        function generateCID(prefix) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let randomStr = '';
+            for (let i = 0; i < 44; i++) {
+                randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return prefix + randomStr;
+        }
+
+        // 表单提交
+        document.getElementById('compose-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isPublishing) return;
+            
+            hideError();
+            
+            // 表单验证
+            const hook = hookInput.value.trim();
+            const question = questionInput.value.trim();
+            const content = document.getElementById('content-editor').innerHTML.trim();
+            
+            if (hook.length < 10) {
+                showError('引子太短了，再多写一点吧');
+                return;
+            }
+            if (hook.length > 200) {
+                showError('引子太长了，控制在200字以内');
+                return;
+            }
+            if (question.length < 5) {
+                showError('问题太短了');
+                return;
+            }
+            if (question.length > 100) {
+                showError('问题太长了，控制在100字以内');
+                return;
+            }
+            if (!content || content === '<br>') {
+                showError('请写下你要分享的内容...');
+                return;
+            }
+            if (selectedTags.length === 0) {
+                showError('请选择至少一个标签');
+                return;
+            }
+
+            isPublishing = true;
+            const submitBtn = document.getElementById('submit-btn');
+            
+            try {
+                log('🚀 开始发布信号弹流程...', 'success');
+                log(`表单数据: 引子长度=${hook.length}, 问题长度=${question.length}, 标签=[${selectedTags.join(', ')}]`, 'info');
+                
+                // 第一步：加密正文
+                submitBtn.textContent = '加密中...';
+                submitBtn.disabled = true;
+                log('[模拟 Lit Protocol] 开始加密正文...', 'warning');
+                await delay(1500);
+                log('[模拟 Lit Protocol] 正文加密完成！', 'success');
+                
+                // 第二步：上传到IPFS
+                submitBtn.textContent = '上传中...';
+                const hintCID = generateCID('QmPub');
+                const encryptedContentCID = generateCID('QmEnc');
+                log('[模拟 IPFS] 开始上传公开内容...', 'warning');
+                await delay(1000);
+                log(`[模拟 IPFS] 公开内容上传成功！CID: ${hintCID}`, 'success');
+                log('[模拟 IPFS] 开始上传加密内容...', 'warning');
+                await delay(800);
+                log(`[模拟 IPFS] 加密内容上传成功！CID: ${encryptedContentCID}`, 'success');
+                
+                // 第三步：调用合约
+                submitBtn.textContent = '发射中...';
+                const txHash = '0x' + Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+                log(`[合约] 调用 createVault(${hintCID}, ${encryptedContentCID}, [${selectedTags.join(', ')}])`, 'warning');
+                await delay(2000);
+                log(`[合约] ✅ 交易成功！TxHash: ${txHash}`, 'success');
+                
+                // 显示成功
+                document.getElementById('compose-view').classList.add('hidden');
+                document.getElementById('success-view').classList.remove('hidden');
+                
+                // 自动返回首页
+                setTimeout(() => {
+                    document.getElementById('success-view').classList.add('hidden');
+                    document.getElementById('home-view').classList.remove('hidden');
+                    
+                    // 重置表单
+                    hookInput.value = '';
+                    questionInput.value = '';
+                    document.getElementById('content-editor').innerHTML = '';
+                    selectedTags = [];
+                    document.querySelectorAll('.tag-btn').forEach(btn => {
+                        btn.className = 'tag-btn px-4 py-2 rounded-full text-sm transition-all duration-300 bg-[#1A1A2E] text-gray-400 hover:text-[#C4A85A] border border-[#2A2A4A] hover:border-[#C4A85A]';
+                    });
+                    hookCount.textContent = '0';
+                    questionCount.textContent = '0';
+                    document.getElementById('tags-count').textContent = '0';
+                    submitBtn.textContent = '发出信号弹';
+                    submitBtn.disabled = false;
+                    isPublishing = false;
+                    
+                    log('🎉 信号弹发布完成！已返回首页', 'success');
+                }, 1500);
+                
+            } catch (error) {
+                log(`❌ 发布失败: ${error.message}`, 'error');
+                showError('发布失败，请重试');
+                submitBtn.textContent = '发出信号弹';
+                submitBtn.disabled = false;
+                isPublishing = false;
+            }
+        });
+
+        // 初始化日志
+        log('🌟 Semaphore 信号弹功能已加载', 'success');
+        log('💡 点击右下角 + 按钮开始创建信号弹', 'info');
+    </script>
+</body>
+</html>

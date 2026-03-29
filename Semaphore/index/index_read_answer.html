@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semaphore | 回响之室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300&family=Inter:wght@200;300;400&display=swap');
+        
+        body { 
+            background-color: #050508; 
+            color: #E8E4F0; 
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .font-serif { font-family: 'Noto Serif SC', serif; }
+
+        /* 1. 漂浮球呼吸 */
+        @keyframes float-ball {
+            0%, 100% { transform: translateY(0); box-shadow: 0 0 20px rgba(196,168,90,0.1); }
+            50% { transform: translateY(-15px); box-shadow: 0 0 40px rgba(196,168,90,0.3); }
+        }
+        .animate-float { animation: float-ball 4s infinite ease-in-out; }
+
+        /* 2. 烟花粒子爆炸 */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #C4A85A;
+            border-radius: 50%;
+            opacity: 0;
+        }
+        @keyframes explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+
+        /* 3. 纸鹤飞走 */
+        @keyframes crane-fly {
+            0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: translate(200px, -400px) scale(0.5) rotate(15deg); opacity: 0; }
+        }
+        .animate-crane { animation: crane-fly 2.5s ease-in forwards; }
+
+        /* 4. 星星闪烁消失 */
+        @keyframes star-shimmer {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; filter: brightness(1.5); }
+            50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+        }
+        .animate-star { animation: star-shimmer 2.5s ease-out forwards; }
+
+        /* 隐藏滚动条 */
+        ::-webkit-scrollbar { width: 0px; }
+
+        .hidden-stage { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 阶段 1：漂浮的发光球 -->
+    <div id="stage-floating" class="fixed inset-0 flex flex-col items-center justify-center z-50">
+        <div onclick="startExplosion()" class="animate-float cursor-pointer flex flex-col items-center group">
+            <div class="relative w-24 h-24 rounded-full border border-[#C4A85A]/40 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                <div class="w-2 h-2 rounded-full bg-[#C4A85A] shadow-[0_0_15px_#C4A85A]"></div>
+            </div>
+            <p class="mt-8 text-[10px] uppercase tracking-[0.5em] text-[#C4A85A]/60 group-hover:text-[#C4A85A] transition-all">Click to Unseal Article</p>
+        </div>
+    </div>
+
+    <!-- 烟花容器 -->
+    <div id="explosion-container" class="fixed inset-0 pointer-events-none z-50 flex items-center justify-center"></div>
+
+    <!-- 阶段 2：阅读与写作 (合并) -->
+    <div id="stage-reading" class="hidden-stage min-h-screen w-full flex flex-col items-center transition-opacity duration-1000">
+        
+        <!-- 沙漏指示器 -->
+        <div class="fixed top-8 flex items-center gap-3 opacity-40">
+            <svg class="w-4 h-4 animate-spin" style="animation-duration: 8s;" viewBox="0 0 24 24" fill="none" stroke="#C4A85A">
+                <path d="M12 2v20M17 5H7M17 19H7M7 5c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke-width="1.5"/>
+            </svg>
+            <span class="text-[9px] uppercase tracking-[0.4em] text-[#C4A85A]">The Sands of Echoes</span>
+        </div>
+
+        <!-- 关闭按钮 -->
+        <button onclick="location.reload()" class="fixed top-8 right-8 text-[#4A4560] hover:text-[#C4B8E8] transition-colors">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        <!-- 第五页：文章正文 -->
+        <main class="w-full max-w-2xl px-6 pt-32 pb-20 space-y-12 transition-all duration-1000" id="article-body">
+            <h1 class="text-3xl font-serif text-center mb-16 tracking-widest text-[#E8E4F0]">《频率的余温》</h1>
+            <div class="prose prose-invert prose-lg leading-[2.2] text-[#E8E4F0]/80 italic font-light space-y-8">
+                <p>我们在这个世界上寻找的，从来不是绝对的安静，而是某种能够覆盖孤独的杂音。</p>
+                <p>当信号灯在长廊中亮起时，那一刻的琥珀色不仅是光的投射，更是某种思维在虚空中的物理着陆。如果你听见了，那说明我们的频率在这一秒，刚好重叠。</p>
+                <p>不要急着离开，时间在这里是静止的，直到你决定放下它。</p>
+            </div>
+        </main>
+
+        <!-- 第六页：回响区域 -->
+        <section class="w-full max-w-2xl px-6 pb-48 border-t border-white/5 pt-20 space-y-12">
+            <div class="text-center space-y-4">
+                <h3 class="text-xl font-serif italic text-[#C4A85A]">阅后，你感到了什么回响？</h3>
+                <p class="text-xs text-[#4A4560] font-light">想到什么就写下来吧，不用完整，不用漂亮，她也想收到你的信号。</p>
+            </div>
+
+            <textarea id="echo-input" placeholder="写下你的回响..." class="w-full h-40 bg-transparent border-none focus:ring-0 text-lg leading-relaxed text-[#E8E4F0] placeholder-[#4A4560] resize-none"></textarea>
+
+            <div class="flex flex-wrap justify-center gap-4">
+                <button onclick="ritual('crane')" class="px-6 py-3 rounded-full border border-[#C4A85A]/30 text-[#C4A85A] text-[10px] uppercase tracking-[0.2em] hover:bg-[#C4A85A]/10 transition-all">悄悄送给作者</button>
+                <button onclick="ritual('star')" class="px-6 py-3 rounded-full border border-[#C4A85A]/30 text-[#C4A85A] text-[10px] uppercase tracking-[0.2em] hover:bg-[#C4A85A]/10 transition-all">留在文章下</button>
+                <button onclick="alert('即将跳转写引子界面...')" class="px-6 py-3 rounded-full border border-[#C4A85A]/30 text-[#C4A85A] text-[10px] uppercase tracking-[0.2em] hover:bg-[#C4A85A]/10 transition-all">发射出我的信号弹</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 仪式层 -->
+    <div id="ritual-layer" class="fixed inset-0 pointer-events-none z-[100] flex items-center justify-center"></div>
+
+    <script>
+        // --- 1. 烟花逻辑 ---
+        function startExplosion() {
+            const container = document.getElementById('explosion-container');
+            const floatingStage = document.getElementById('stage-floating');
+            const readingStage = document.getElementById('stage-reading');
+
+            // 产生粒子
+            for (let i = 0; i < 30; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 100 + Math.random() * 150;
+                p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+                p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+                p.style.animation = `explode ${0.6 + Math.random() * 0.4}s ease-out forwards`;
+                container.appendChild(p);
+            }
+
+            floatingStage.style.opacity = '0';
+            setTimeout(() => {
+                floatingStage.classList.add('hidden-stage');
+                readingStage.classList.remove('hidden-stage');
+                readingStage.style.opacity = '1';
+            }, 600);
+        }
+
+        // --- 2. 仪式转场 (纸鹤/星星) ---
+        function ritual(type) {
+            const layer = document.getElementById('ritual-layer');
+            const readingStage = document.getElementById('stage-reading');
+            
+            layer.innerHTML = '';
+            const icon = document.createElement('div');
+            icon.style.position = 'absolute';
+            icon.style.left = '50%';
+            icon.style.top = '50%';
+
+            if (type === 'crane') {
+                icon.innerHTML = `<svg class="w-16 h-16 text-[#C4A85A] animate-crane" viewBox="0 0 100 100" fill="none" stroke="currentColor"><path d="M10 50L40 20L60 40L90 10L70 80L40 50L10 50Z" stroke-width="2"/></svg>`;
+            } else {
+                icon.innerHTML = `<svg class="w-12 h-12 text-[#C4A85A] animate-star" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z"/></svg>`;
+            }
+
+            layer.appendChild(icon);
+            
+            // 文章主体淡出，模拟消失
+            readingStage.style.opacity = '0';
+            
+            setTimeout(() => {
+                alert("仪式完成。");
+                location.reload(); // 回到初始态
+            }, 2500);
+        }
+
+        // --- 3. 挽留逻辑模拟 ---
+        // 虽然单文件 HTML 很难完全监测“阅读行为”，
+        // 但我们可以设置：只要 textarea 有内容或获得焦点，页面就不会自动做任何“清理”动作。
+        const input = document.getElementById('echo-input');
+        input.addEventListener('focus', () => {
+            console.log("读者正在输入，文章将一直陪伴...");
+        });
+    </script>
+</body>
+</html>

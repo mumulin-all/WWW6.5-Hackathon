@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semaphore — Personal Hub 个人中心</title>
+<style>
+/**
+ * Semaphore — Personal Hub
+ * ─────────────────────────────────────────────────────────────────
+ * 流程图对应逻辑注释：
+ *
+ *  A. 收到的回答  → 选择开门(Yes) → 授权限时查看文章（24h 倒计时）
+ *                              No  → 稍后处理，保持 pending
+ *
+ *  B. 待处理邀请  → 回复(Yes) → ① 私信作者
+ *                              ② 文章内公开
+ *                              ③ 转化为新信号弹
+ *                         No  → 稍后，保持列表
+ *
+ *  C. 发出的信号弹 → 选择删除(Yes) → 二次确认弹窗
+ *                                    提示"保留后续相连信号流"
+ *                                    确认 → 删除节点，保留相连链
+ *                               No  → 取消，留在列表
+ *
+ *  D. 礼物/阅后感 → 直接展示
+ */
+
+/* ── Reset & Base ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:    #09090F;
+  --sf:    #111120;
+  --ra:    #18182A;
+  --bd:    #22223A;
+  --bdh:   #33334A;
+  --am:    #C4A85A;
+  --amBg:  rgba(196,168,90,0.10);
+  --amB:   rgba(196,168,90,0.35);
+  --amG:   rgba(196,168,90,0.07);
+  --vi:    #9B7FD4;
+  --viBg:  rgba(155,127,212,0.12);
+  --viB:   rgba(155,127,212,0.35);
+  --gn:    #4ADE80;
+  --gnBg:  rgba(74,222,128,0.10);
+  --gnB:   rgba(74,222,128,0.30);
+  --rd:    #EF4444;
+  --rdBg:  rgba(239,68,68,0.10);
+  --rdB:   rgba(239,68,68,0.35);
+  --tx:    #E8E4F0;
+  --ts:    #9890A8;
+  --tm:    #4A4560;
+}
+
+html, body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--tx);
+  font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #22223A; border-radius: 2px; }
+
+/* ── Keyframes ───────────────────────────────────────────────── */
+@keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes fadeUp   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes scaleIn  { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+@keyframes spin     { to{transform:rotate(360deg)} }
+@keyframes shimmer  { 0%{opacity:.6} 50%{opacity:1} 100%{opacity:.6} }
+
+/* ── Navbar ──────────────────────────────────────────────────── */
+nav {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px;
+  background: rgba(9,9,15,0.96);
+  border-bottom: 1px solid var(--bd);
+  backdrop-filter: blur(20px);
+}
+.brand       { display:flex; align-items:center; gap:9px; }
+.brand-name  { font-family:'Georgia',serif; font-size:17px; letter-spacing:.16em; text-transform:uppercase; color:var(--tx); }
+.logo-dot    { animation:pulse 2.2s ease-in-out infinite; }
+
+.nav-crumb   { font-size:10px; color:var(--tm); letter-spacing:.12em; }
+
+/* Wallet pill */
+.w-pill {
+  display:flex; align-items:center; gap:7px;
+  padding:4px 12px 4px 6px;
+  background:var(--sf); border:1px solid var(--bd); border-radius:999px;
+  cursor:pointer; transition:border-color .2s; position:relative;
+}
+.w-pill:hover  { border-color:var(--viB); }
+.online-dot    { width:6px; height:6px; border-radius:50%; background:var(--gn); flex-shrink:0; }
+.ens-label     { font-size:11px; color:var(--tx); letter-spacing:.04em; }
+
+/* Dropdown */
+.dd-menu {
+  position:absolute; top:calc(100% + 8px); right:0;
+  background:var(--ra); border:1px solid var(--bd); border-radius:12px;
+  padding:6px 0; min-width:210px; z-index:60;
+  box-shadow:0 20px 40px rgba(0,0,0,.65);
+  animation:fadeUp .15s ease;
+}
+.dd-hdr       { padding:8px 14px; border-bottom:1px solid var(--bd); margin-bottom:4px; }
+.dd-lbl       { font-size:9px; color:var(--tm); letter-spacing:.14em; text-transform:uppercase; margin-bottom:4px; }
+.dd-addr-txt  { font-size:10px; color:var(--ts); word-break:break-all; line-height:1.6; }
+.dd-item {
+  display:flex; align-items:center; gap:8px;
+  width:100%; padding:8px 14px;
+  background:none; border:none;
+  font-size:11px; color:var(--ts); cursor:pointer;
+  text-align:left; font-family:inherit;
+  transition:background .15s, color .15s;
+}
+.dd-item:hover       { background:var(--amG); color:var(--am); }
+.dd-item.vi:hover    { background:var(--viBg); color:var(--vi); }
+.dd-item.danger      { color:var(--rd); }
+.dd-item.danger:hover { background:rgba(239,68,68,.08); color:var(--rd); }
+.dd-sep { border:none; border-top:1px solid var(--bd); margin:4px 0; }
+
+/* ── Profile Header ──────────────────────────────────────────── */
+.page-wrap    { max-width:840px; margin:0 auto; padding:28px 22px 0; }
+
+.profile-top  { display:flex; align-items:flex-start; gap:15px; margin-bottom:22px; }
+.av-wrap      { position:relative; flex-shrink:0; }
+.av-dot       { position:absolute; bottom:2px; right:2px; width:10px; height:10px; border-radius:50%; background:var(--gn); border:2px solid var(--bg); }
+.avatar       { border-radius:50%; border:1.5px solid var(--bd); display:block; flex-shrink:0; }
+
+.profile-name {
+  display:flex; align-items:center; gap:9px;
+  font-family:'Georgia',serif; font-size:20px; color:var(--tx);
+  margin-bottom:4px;
+}
+.badge-online {
+  font-size:9px; color:var(--gn);
+  background:var(--gnBg); border:1px solid var(--gnB);
+  border-radius:999px; padding:2px 7px; font-family:monospace;
+}
+.profile-addr { font-size:10px; color:var(--tm); font-family:monospace; margin-bottom:7px; }
+.profile-bio  { font-size:12px; color:var(--ts); font-family:'Georgia',serif; line-height:1.65; max-width:480px; }
+
+/* ── Stats Grid ──────────────────────────────────────────────── */
+.stats-grid {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:9px; margin-bottom:22px;
+}
+.stat-card    { background:var(--sf); border:1px solid var(--bd); border-radius:10px; padding:12px 14px; text-align:center; }
+.stat-num     { font-family:'Georgia',serif; font-size:21px; color:var(--am); letter-spacing:.02em; }
+.stat-lbl     { font-size:9px; color:var(--tm); margin-top:4px; letter-spacing:.09em; }
+
+/* ── Tab Bar ─────────────────────────────────────────────────── */
+.tab-bar {
+  display:flex; gap:3px; margin-bottom:22px;
+  background:var(--sf); border:1px solid var(--bd);
+  border-radius:10px; padding:4px;
+}
+.tab-btn {
+  flex:1; padding:7px 10px;
+  background:none; border:1px solid transparent; border-radius:7px;
+  color:var(--tm); font-size:11px; cursor:pointer;
+  letter-spacing:.04em; font-family:inherit;
+  transition:all .2s;
+}
+.tab-btn.active { background:var(--ra); border-color:var(--bd); color:var(--am); }
+
+/* ── Section Header ──────────────────────────────────────────── */
+.sec-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.sec-left { display:flex; align-items:center; gap:7px; }
+.sec-title-text { font-size:10px; letter-spacing:.16em; color:var(--tm); text-transform:uppercase; }
+.sec-count { font-size:9px; background:var(--viBg); border:1px solid var(--viB); color:var(--vi); border-radius:999px; padding:2px 8px; }
+.divider   { height:1px; margin-bottom:14px; }
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card-list  { display:flex; flex-direction:column; gap:10px; padding-bottom:60px; }
+.card {
+  background:var(--sf); border:1px solid var(--bd); border-radius:12px;
+  padding:14px 16px; position:relative; overflow:hidden;
+  transition:border-color .2s, transform .2s;
+}
+.card:hover          { transform:translateY(-1px); }
+.card.signal:hover   { border-color:var(--amB); }
+.card.answer:hover   { border-color:var(--viB); }
+.card.answer.auth    { border-color:var(--gnB); }
+.card.invite:hover   { border-color:var(--amB); }
+.card.gift:hover     { border-color:var(--amB); }
+
+.card-accent {
+  position:absolute; left:0; top:0; bottom:0; width:2px;
+  background:linear-gradient(to bottom, var(--am), transparent);
+  border-radius:2px 0 0 2px;
+}
+.card-glow {
+  position:absolute; top:-22px; right:-22px; width:100px; height:100px;
+  border-radius:50%; pointer-events:none;
+}
+
+/* Card sub-elements */
+.sender-row   { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.sender-info  { flex:1; }
+.sender-name  { font-size:11px; color:var(--ts); font-family:monospace; }
+.sender-time  { font-size:9px; color:var(--tm); margin-top:1px; }
+.card-body    { font-family:'Georgia',serif; font-size:12px; color:var(--ts); line-height:1.7; margin-bottom:9px; }
+.article-tag  {
+  font-size:10px; color:var(--tm);
+  background:var(--ra); border:1px solid var(--bd); border-radius:5px;
+  padding:4px 9px; margin-bottom:10px; font-family:monospace;
+}
+.card-footer  { display:flex; align-items:center; justify-content:space-between; }
+.card-stats   { display:flex; align-items:center; gap:10px; }
+.stat-chip    { font-size:10px; color:var(--tm); font-family:monospace; }
+.card-block   { font-size:9px; color:var(--tm); font-family:monospace; opacity:.5; margin-top:7px; }
+.card-actions { display:flex; gap:7px; align-items:center; margin-top:12px; }
+
+/* Quote style for gifts */
+.gift-quote {
+  font-family:'Georgia',serif; font-size:13px; color:var(--tx); line-height:1.8;
+  border-left:2px solid rgba(196,168,90,.35); padding-left:12px; margin:0;
+}
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.badge {
+  display:inline-flex; align-items:center; gap:3px;
+  padding:2px 7px; border-radius:999px;
+  font-size:9px; letter-spacing:.1em; text-transform:uppercase;
+  white-space:nowrap; font-family:monospace;
+}
+.badge-am   { background:var(--amBg); border:1px solid var(--amB); color:var(--am); }
+.badge-vi   { background:var(--viBg); border:1px solid var(--viB); color:var(--vi); }
+.badge-gn   { background:var(--gnBg); border:1px solid var(--gnB); color:var(--gn); }
+.badge-rd   { background:var(--rdBg); border:1px solid var(--rdB); color:var(--rd); }
+.badge-online-sm { font-size:9px; color:var(--gn); background:var(--gnBg); border:1px solid var(--gnB); border-radius:999px; padding:2px 7px; font-family:monospace; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:7px 14px; border-radius:8px;
+  font-size:11px; cursor:pointer; letter-spacing:.06em; font-family:inherit;
+  transition:all .2s; border:1px solid; white-space:nowrap;
+}
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-am    { background:var(--amBg); border-color:var(--amB); color:var(--am); }
+.btn-am:hover:not(:disabled)  { background:rgba(196,168,90,.22); }
+.btn-vi    { background:var(--viBg); border-color:var(--viB); color:var(--vi); }
+.btn-vi:hover:not(:disabled)  { background:rgba(155,127,212,.22); }
+.btn-gn    { background:var(--gnBg); border-color:var(--gnB); color:var(--gn); }
+.btn-rd    { background:var(--rdBg); border-color:var(--rdB); color:var(--rd); }
+.btn-rd:hover:not(:disabled)  { background:rgba(239,68,68,.2); }
+.btn-ghost { background:none; border-color:var(--bd); color:var(--ts); }
+.btn-ghost:hover:not(:disabled) { border-color:var(--bdh); color:var(--tx); }
+.btn-sm    { padding:5px 10px; font-size:10px; }
+
+/* ── Reply Panel ─────────────────────────────────────────────── */
+.reply-panel    { border-top:1px solid var(--bd); padding:14px 16px; background:var(--ra); }
+.reply-panel-lbl { font-size:9px; color:var(--tm); letter-spacing:.12em; text-transform:uppercase; margin-bottom:10px; }
+.reply-opts     { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.reply-opt {
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:9px 12px; border-radius:8px; cursor:pointer;
+  text-align:left; transition:all .15s;
+  background:var(--sf); border:1px solid var(--bd);
+}
+.reply-opt:hover              { border-color:var(--bdh); }
+.reply-opt.sel-vi             { background:rgba(155,127,212,.10); border-color:rgba(155,127,212,.4); }
+.reply-opt.sel-am             { background:rgba(196,168,90,.10); border-color:rgba(196,168,90,.4); }
+.reply-opt.sel-gn             { background:rgba(74,222,128,.08); border-color:rgba(74,222,128,.3); }
+.reply-opt-name  { font-size:11px; color:var(--tx); }
+.reply-opt-desc  { font-size:9px; color:var(--tm); margin-top:1px; }
+.reply-check     { margin-left:auto; }
+.reply-textarea {
+  width:100%; min-height:76px; padding:9px 12px;
+  background:var(--sf); border:1px solid var(--bd); border-radius:8px;
+  color:var(--tx); font-family:'Georgia',serif;
+  font-size:12px; line-height:1.65; resize:none; outline:none;
+  margin-bottom:10px; transition:border-color .2s;
+}
+.reply-textarea:focus { border-color:var(--viB); }
+
+/* ── Delete Modal ────────────────────────────────────────────── */
+.modal-overlay {
+  position:fixed; inset:0; z-index:200;
+  background:rgba(9,9,15,.85); backdrop-filter:blur(12px);
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background:var(--ra); border:1px solid var(--rdB); border-radius:16px;
+  padding:26px 26px; max-width:368px; width:100%;
+  animation:scaleIn .15s ease;
+  box-shadow:0 24px 60px rgba(0,0,0,.7);
+}
+.modal-title-row  { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.modal-icon       { width:34px; height:34px; border-radius:50%; background:var(--rdBg); border:1px solid var(--rdB); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.modal-title      { font-size:14px; color:var(--tx); }
+.modal-sub        { font-size:9px; color:var(--tm); margin-top:2px; }
+.modal-preview    { background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:9px 12px; margin-bottom:13px; font-size:11px; color:var(--ts); line-height:1.6; font-family:'Georgia',serif; }
+.modal-warn       { background:var(--amBg); border:1px solid var(--amB); border-radius:8px; padding:9px 12px; margin-bottom:16px; display:flex; gap:8px; align-items:flex-start; }
+.modal-warn-text  { font-size:11px; color:var(--am); line-height:1.65; }
+.modal-btns       { display:flex; gap:9px; }
+.modal-btns .btn  { flex:1; }
+
+/* ── Toast ───────────────────────────────────────────────────── */
+.toast-wrap {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  z-index:300; display:flex; flex-direction:column; gap:7px;
+  align-items:center; pointer-events:none;
+}
+.toast {
+  background:var(--ra); border-radius:999px;
+  padding:7px 18px; font-size:11px; letter-spacing:.07em;
+  animation:fadeUp .2s ease; white-space:nowrap;
+}
+
+/* ── Empty State ─────────────────────────────────────────────── */
+.empty-state {
+  display:flex; flex-direction:column; align-items:center;
+  padding:30px 20px; color:var(--tm); text-align:center; gap:8px; font-size:11px;
+}
+
+/* ── Countdown Badge ─────────────────────────────────────────── */
+.countdown-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; border-radius:999px;
+  font-size:9px; letter-spacing:.05em; font-family:monospace;
+  background:var(--gnBg); border:1px solid var(--gnB); color:var(--gn);
+}
+.countdown-badge.expired { background:var(--rdBg); border-color:var(--rdB); color:var(--rd); }
+
+/* ── Authorizing spinner ─────────────────────────────────────── */
+.auth-spin {
+  width:12px; height:12px; border-radius:50%;
+  border:1.5px solid transparent;
+  border-top-color:var(--am);
+  animation:spin .9s linear infinite;
+  display:inline-block;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ NAVBAR ══════════════════════════════════════════════════ -->
+<nav>
+  <div class="brand">
+    <div style="position:relative;width:26px;height:26px">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="22" r="3" fill="#C4A85A"/>
+        <path d="M8 18 Q16 8 24 18" stroke="#C4A85A" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".5"/>
+        <path d="M4 15 Q16 2 28 15" stroke="#C4A85A" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".25"/>
+        <path d="M10 21 Q16 12 22 21" stroke="#9B7FD4" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".7"/>
+      </svg>
+      <div class="logo-dot" style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#C4A85A;box-shadow:0 0 8px 3px rgba(196,168,90,.55)"></div>
+    </div>
+    <span class="brand-name">Semaphore</span>
+  </div>
+
+  <span class="nav-crumb">个人中心 / Personal Hub</span>
+
+  <!-- Wallet pill + dropdown -->
+  <div style="position:relative">
+    <div class="w-pill" id="wallet-pill" onclick="toggleDD()">
+      <svg id="nav-avatar" width="22" height="22" viewBox="0 0 28 28" class="avatar" style="width:22px;height:22px"></svg>
+      <div class="online-dot"></div>
+      <span class="ens-label" id="nav-ens"></span>
+    </div>
+    <div class="dd-menu" id="dd-menu" style="display:none">
+      <div class="dd-hdr">
+        <div class="dd-lbl">Connected</div>
+        <div class="dd-addr-txt" id="dd-full-addr"></div>
+      </div>
+      <button class="dd-item" id="copy-btn" onclick="copyAddr()">⎘ &nbsp;复制地址</button>
+      <button class="dd-item vi" onclick="openEtherscan()">↗ &nbsp;Etherscan</button>
+      <hr class="dd-sep">
+      <button class="dd-item danger" onclick="handleDisconnect()">⏻ &nbsp;断开连接</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ PAGE BODY ════════════════════════════════════════════════ -->
+<div class="page-wrap">
+
+  <!-- Profile header -->
+  <div class="profile-top">
+    <div class="av-wrap">
+      <svg id="profile-avatar" width="62" height="62" viewBox="0 0 28 28" class="avatar" style="width:62px;height:62px"></svg>
+      <div class="av-dot"></div>
+    </div>
+    <div>
+      <div class="profile-name">
+        <span id="profile-ens"></span>
+        <span class="badge-online">在线</span>
+      </div>
+      <div class="profile-addr" id="profile-addr-short"></div>
+      <div class="profile-bio">在这里，每一个字都是永恒的见证。信号弹升起的那一刻，它已经属于这个世界。</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="signals"  onclick="switchTab('signals')">✦ 信号弹</button>
+    <button class="tab-btn"        data-tab="answers"  onclick="switchTab('answers')">◎ 收到回答</button>
+    <button class="tab-btn"        data-tab="invites"  onclick="switchTab('invites')">◈ 邀请</button>
+    <button class="tab-btn"        data-tab="gifts"    onclick="switchTab('gifts')">♦ 礼物</button>
+  </div>
+
+  <!-- Panel -->
+  <div id="panel"></div>
+</div>
+
+<!-- ══ DELETE MODAL ═════════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-box">
+    <div class="modal-title-row">
+      <div class="modal-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div>
+        <div class="modal-title">确认删除信号弹</div>
+        <div class="modal-sub">此操作不可撤销</div>
+      </div>
+    </div>
+    <!-- 信号内容预览（动态填充） -->
+    <div class="modal-preview" id="modal-preview"></div>
+    <!-- 流程图：保留后续相连信号流的提示（有 linked > 0 时显示） -->
+    <div class="modal-warn" id="modal-warn" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#C4A85A" style="margin-top:2px;flex-shrink:0">
+        <path d="M12 2L9.5 9.5L2 12L9.5 14.5L12 22L14.5 14.5L22 12L14.5 9.5L12 2Z" opacity=".9"/>
+      </svg>
+      <div class="modal-warn-text" id="modal-warn-text"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-rd"    onclick="confirmDelete()" id="modal-confirm-btn">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST STACK ═══════════════════════════════════════════════ -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════════════ */
+const WALLET = '0x742d35Cc6634C0532925a3b8D4C9B2D4e123456A';
+const ENS    = 'semaphore.eth';
+
+/* ═══════════════════════════════════════════════════════════════
+   APPLICATION STATE
+═══════════════════════════════════════════════════════════════ */
+const state = {
+  activeTab: 'signals',
+  ddOpen:    false,
+  deleteTargetId: null,
+
+  // ── A. 发出的信号弹 ─────────────────────────────────────────
+  signals: [
+    { id:1, content:'我一直在思考，去中心化社交的本质不是技术——而是信任的重新分配。当你把一封信写进 Arweave，你是在立碑。每一个字都是永恒的见证。', ts:1735200000, blockNumber:21891234, storage:'arweave', resonances:47, replies:3, linked:2 },
+    { id:2, content:"The paradox of permanent anonymity: your words are forever, but no one knows they're yours. Is that freedom or erasure?", ts:1735150000, blockNumber:21890001, storage:'ipfs', resonances:23, replies:1, linked:0 },
+    { id:3, content:'永恒不是时间的长度，而是深度。每一个被接住的信号都在扩展宇宙的边界。', ts:1735100000, blockNumber:21888500, storage:'arweave', resonances:31, replies:5, linked:4 },
+  ],
+
+  // ── B. 收到的回答 ───────────────────────────────────────────
+  // status: 'pending' | 'authorizing' | 'authorized'
+  answers: [
+    { id:1, from:'0x742d35Cc6634C0532925a3b8D4C9B2D4e123456A', ens:'vitalik.eth',      preview:'你的问题触到了一个深层的矛盾——匿名性与连接性的张力，在 zk-proof 的语境下被重新定义……', ts:1735200000, article:'《去中心化社交的身份悖论》', status:'pending', authorizedAt:null },
+    { id:2, from:'0x9B2D4e123456789B2D4e123456789B2D4e123456', ens:null,                preview:"I think the answer lies in zk-proofs. The signal doesn't need to carry identity to carry meaning.", ts:1735150000, article:'《Zero-Knowledge Social Graphs》', status:'authorized', authorizedAt: Date.now() + 3600000 * 20 },
+    { id:3, from:'0xABCDEF1234567890ABCDEF1234567890ABCDEF12', ens:'anon.eth',           preview:'这个问题我思考了三年，答案藏在中本聪的第一个区块里……', ts:1735050000, article:'《Genesis Block 的隐喻》', status:'pending', authorizedAt:null },
+  ],
+
+  // ── C. 待处理邀请 ───────────────────────────────────────────
+  // replyType: null | 'private' | 'public' | 'signal'
+  invites: [
+    { id:1, from:'0x742d35Cc6634C0532925a3b8D4C9B2D4e123456A', ens:'vitalik.eth',      article:'《去中心化社交的身份悖论》',         excerpt:'我看到了你发出的信号，想邀请你来看这篇文章，或许对你的问题有所回应……',     ts:1735200000, replying:false, replyType:null, replyText:'', submitted:false },
+    { id:2, from:'0xABCDEF1234567890ABCDEF1234567890ABCDEF12', ens:'philosopher.eth',  article:'《信号与噪声：Web3 时代的沟通哲学》', excerpt:'发现你在思考类似的问题，这篇文章是我三年观察的总结，希望对你有帮助……', ts:1735100000, replying:false, replyType:null, replyText:'', submitted:false },
+  ],
+
+  // ── D. 礼物 / 阅后感 ────────────────────────────────────────
+  gifts: [
+    { id:1, from:'0xFEDCBA9876543210FEDCBA9876543210FEDCBA98', ens:null,          message:'读完你的信号弹，我在凌晨三点哭了。谢谢你把这些话写出来——我以为只有我这样想。', ts:1735200000, article:'《永恒的匿名》', type:'感受' },
+    { id:2, from:'0x1234567890ABCDEF1234567890ABCDEF12345678', ens:'reader.eth',   message:"This piece changed how I think about digital identity. The metaphor of a flare in the dark is something I'll carry for a long time.", ts:1735100000, article:'《信号弹》', type:'共鸣' },
+    { id:3, from:'0xDEADBEEF1234567890DEADBEEF1234567890DEAD', ens:null,          message:'如果有来生，我希望我们在一个真正去中心化的世界相遇。你的文字是我在 Web3 荒漠里找到的第一片绿洲。', ts:1735000000, article:'《去中心化的孤独》', type:'感受' },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════════ */
+
+/** Deterministic avatar generator (Jazzicon-style) */
+function hashNum(s, n) {
+  let h = 0, str = s + n;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function genAvatar(addr, size = 28) {
+  const colors = ['#C4A85A','#9B7FD4','#6A8FD4','#D47F9B','#7FD49B','#D4A07F','#7FB4D4','#CF7FD4'];
+  const ns = addr || '0xdead';
+  let circles = '';
+  for (let i = 0; i < 5; i++) {
+    const cx   = 4 + hashNum(ns, i * 3) % 20;
+    const cy   = 4 + hashNum(ns, i * 3 + 1) % 20;
+    const r    = 4 + hashNum(ns, i * 3 + 2) % 8;
+    const fill = colors[hashNum(ns, i) % colors.length];
+    const op   = (0.5 + (i % 3) * 0.18).toFixed(2);
+    circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="${op}"/>`;
+  }
+  const clipId = 'av' + ns.slice(2, 8);
+  return `<defs><clipPath id="${clipId}"><circle cx="14" cy="14" r="14"/></clipPath></defs>
+    <rect width="28" height="28" fill="#18182A"/>
+    <g clip-path="url(#${clipId})">${circles}</g>`;
+}
+
+/** Inline SVG avatar element string */
+function avatarSVG(addr, size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 28 28" class="avatar" style="width:${size}px;height:${size}px">
+    ${genAvatar(addr, size)}
+  </svg>`;
+}
+
+function truncAddr(a) { return a ? `${a.slice(0,6)}...${a.slice(-4)}` : ''; }
+
+function fmtDate(ts) {
+  return new Date(ts * 1000).toLocaleDateString('zh-CN', { month:'short', day:'numeric' });
+}
+
+/** Show toast notification */
+function showToast(msg, type = 'amber') {
+  const wrap = document.getElementById('toast-wrap');
+  const colors = { amber:['rgba(196,168,90,.45)','#C4A85A'], violet:['rgba(155,127,212,.45)','#9B7FD4'], green:['rgba(74,222,128,.4)','#4ADE80'], red:['rgba(239,68,68,.4)','#EF4444'] };
+  const [borderColor, textColor] = colors[type] || colors.amber;
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.border = `1px solid ${borderColor}`;
+  t.style.color = textColor;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 2400);
+}
+
+/** Render countdown string from endTime (ms) */
+function countdownHTML(endTime) {
+  const rem = Math.max(0, endTime - Date.now());
+  if (rem === 0) return `<span class="countdown-badge expired">已过期</span>`;
+  const h = Math.floor(rem / 3600000);
+  const m = Math.floor((rem % 3600000) / 60000);
+  const s = Math.floor((rem % 60000) / 1000);
+  return `<span class="countdown-badge">
+    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}
+  </span>`;
+}
+
+/* Live countdown refresh for a specific answer card */
+function startCountdownFor(answerId) {
+  const tick = () => {
+    const badgeEl = document.getElementById(`countdown-${answerId}`);
+    const ans = state.answers.find(a => a.id === answerId);
+    if (badgeEl && ans && ans.status === 'authorized') {
+      badgeEl.innerHTML = countdownHTML(ans.authorizedAt);
+      setTimeout(tick, 1000);
+    }
+  };
+  setTimeout(tick, 1000);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATS
+═══════════════════════════════════════════════════════════════ */
+function renderStats() {
+  const totalResonances = state.signals.reduce((sum, s) => sum + s.resonances, 0);
+  const authorizedCount = state.answers.filter(a => a.status === 'authorized').length;
+  const items = [
+    { label:'发出信号',  val: state.signals.length },
+    { label:'总共鸣数',  val: totalResonances },
+    { label:'已开门',    val: authorizedCount },
+    { label:'礼物收到',  val: state.gifts.length },
+  ];
+  document.getElementById('stats-grid').innerHTML = items.map(s => `
+    <div class="stat-card">
+      <div class="stat-num">${s.val}</div>
+      <div class="stat-lbl">${s.label}</div>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL A — 发出的信号弹
+   流程：查看信号弹 → 选择删除(Yes) → 二次确认弹窗
+                                  No  → 取消，留在列表
+═══════════════════════════════════════════════════════════════ */
+function renderSignals() {
+  if (!state.signals.length) {
+    return `<div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 48 48" fill="none" style="opacity:.3">
+        <circle cx="24" cy="36" r="3" fill="#C4A85A"/>
+        <path d="M14 30 Q24 18 34 30" stroke="#C4A85A" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M8 25 Q24 10 40 25" stroke="#C4A85A" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      还没有发出的信号弹
+    </div>`;
+  }
+  return state.signals.map(sig => `
+    <div class="card signal" style="padding-left:20px">
+      <div class="card-accent"></div>
+      <div class="card-glow" style="background:radial-gradient(circle,rgba(196,168,90,.06) 0%,transparent 70%)"></div>
+
+      <p class="card-body">${sig.content.slice(0, 120)}${sig.content.length > 120 ? '…' : ''}</p>
+
+      <div class="card-footer">
+        <div class="card-stats">
+          <span class="stat-chip">◎ ${sig.resonances}</span>
+          <span class="stat-chip">↩ ${sig.replies}</span>
+          ${sig.linked > 0 ? `<span class="badge badge-vi">⬡ ${sig.linked} 相连</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="badge badge-am">${sig.storage === 'arweave' ? '⧫ Arweave' : '◎ IPFS'}</span>
+          <!-- 流程：点击删除 → 触发二次确认弹窗（选择删除 Yes 分支） -->
+          <button class="btn btn-ghost btn-sm" onclick="openDeleteModal(${sig.id})"
+            onmouseenter="this.style.color='var(--rd)';this.style.borderColor='var(--rdB)'"
+            onmouseleave="this.style.color='var(--ts)';this.style.borderColor='var(--bd)'">
+            ✕ 删除
+          </button>
+        </div>
+      </div>
+      <div class="card-block">Block #${sig.blockNumber} · ${fmtDate(sig.ts)}</div>
+    </div>`).join('');
+}
+
+/* 触发删除弹窗 — 对应流程图"选择删除" */
+function openDeleteModal(signalId) {
+  const sig = state.signals.find(s => s.id === signalId);
+  if (!sig) return;
+  state.deleteTargetId = signalId;
+
+  document.getElementById('modal-preview').textContent = sig.content.slice(0, 90) + (sig.content.length > 90 ? '…' : '');
+
+  // 流程图：删除但保留后续相连的信号弹 → 显示提示
+  const warnEl = document.getElementById('modal-warn');
+  const warnTxt = document.getElementById('modal-warn-text');
+  if (sig.linked > 0) {
+    warnTxt.innerHTML = `此信号弹已触发 <strong style="font-family:monospace">${sig.linked}</strong> 条相连信号流，
+      删除后将<strong>仅移除此节点</strong>，后续相连的信号弹将被完整保留。`;
+    warnEl.style.display = 'flex';
+  } else {
+    warnEl.style.display = 'none';
+  }
+
+  document.getElementById('delete-modal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.remove('open');
+  state.deleteTargetId = null;
+}
+
+/* 确认删除 — 流程图"选择删除 Yes"最终执行 */
+function confirmDelete() {
+  if (!state.deleteTargetId) return;
+  state.signals = state.signals.filter(s => s.id !== state.deleteTargetId);
+  closeDeleteModal();
+  renderPanel();
+  renderStats();
+  showToast('信号弹已删除，相连信号流已保留 ◈', 'amber');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL B — 收到的回答
+   流程：选择开门(Yes) → 授权中 → 授权完成 → 24h 倒计时
+                    No  → 稍后处理，保持 pending
+═══════════════════════════════════════════════════════════════ */
+function renderAnswers() {
+  return state.answers.map(ans => {
+    const isAuth   = ans.status === 'authorized';
+    const isIzing  = ans.status === 'authorizing';
+    return `
+    <div class="card answer${isAuth ? ' auth' : ''}">
+      <div class="sender-row">
+        ${avatarSVG(ans.from, 30)}
+        <div class="sender-info">
+          <div class="sender-name">${ans.ens || truncAddr(ans.from)}</div>
+          <div class="sender-time">${fmtDate(ans.ts)}</div>
+        </div>
+        <div id="countdown-${ans.id}">
+          ${isAuth   ? countdownHTML(ans.authorizedAt) : ''}
+          ${isIzing  ? `<span class="badge badge-am"><span class="auth-spin"></span> 授权中</span>` : ''}
+        </div>
+      </div>
+
+      <p class="card-body">${ans.preview}</p>
+      <div class="article-tag">关联文章：${ans.article}</div>
+
+      <div class="card-actions">
+        <!-- 流程：选择开门 Yes → 调用 openDoor() 进入授权流程 -->
+        ${!isAuth && !isIzing ? `
+          <button class="btn btn-am" onclick="openDoor(${ans.id})">⬡ 开门授权</button>
+          <!-- 流程：选择开门 No → 稍后处理 -->
+          <button class="btn btn-ghost btn-sm">稍后处理</button>
+        ` : ''}
+        ${isAuth  ? `<button class="btn btn-gn">✓ 限时阅读中</button>` : ''}
+        ${isIzing ? `<button class="btn btn-ghost btn-sm" disabled>处理中…</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/**
+ * 开门授权逻辑
+ * 流程图：选择开门(Yes) → 卡片进入"授权中"状态 → 链上确认 → 授权成功 → 启动 24h 倒计时
+ */
+function openDoor(answerId) {
+  const ans = state.answers.find(a => a.id === answerId);
+  if (!ans || ans.status !== 'pending') return;
+
+  // Step 1: 立即切换为"授权中"状态，显示旋转动效
+  ans.status = 'authorizing';
+  renderPanel();
+  showToast('正在链上广播授权交易…', 'amber');
+
+  // Step 2: 模拟链上确认延迟（实际应监听合约 event）
+  setTimeout(() => {
+    ans.status = 'authorized';
+    ans.authorizedAt = Date.now() + 86400000; // 24 小时后过期
+    renderPanel();
+    renderStats();
+    showToast('授权成功！24 小时限时阅读已开启 ✓', 'green');
+    // Step 3: 启动实时倒计时刷新
+    startCountdownFor(answerId);
+  }, 1800);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL C — 待处理邀请
+   流程：回复(Yes) → 三选一：私信作者 / 文章内公开 / 新信号弹
+              No   → 稍后，保持列表
+═══════════════════════════════════════════════════════════════ */
+const REPLY_OPTIONS = [
+  { key:'private', label:'私信作者',       icon:'🔐', desc:'只有作者能看到',    selCls:'sel-vi', color:'#9B7FD4' },
+  { key:'public',  label:'文章内公开',     icon:'◎',  desc:'文章读者均可见',    selCls:'sel-am', color:'#C4A85A' },
+  { key:'signal',  label:'转化为新信号弹', icon:'✦',  desc:'广播至全网 Feed',  selCls:'sel-gn', color:'#4ADE80' },
+];
+
+function renderInvites() {
+  const active = state.invites.filter(inv => !inv.submitted);
+  if (!active.length) {
+    return `<div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 48 48" fill="none" style="opacity:.3">
+        <circle cx="24" cy="36" r="3" fill="#C4A85A"/>
+      </svg>
+      暂无待处理邀请
+    </div>`;
+  }
+  return active.map(inv => `
+    <div class="card invite" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px">
+        <div class="sender-row">
+          ${avatarSVG(inv.from, 30)}
+          <div class="sender-info">
+            <div class="sender-name">${inv.ens || truncAddr(inv.from)}</div>
+            <div class="sender-time">${fmtDate(inv.ts)} 发出邀请</div>
+          </div>
+          <span class="badge badge-am">邀请</span>
+        </div>
+        <div class="article-tag">${inv.article}</div>
+        <p class="card-body">${inv.excerpt}</p>
+        <div style="display:flex;gap:7px">
+          <!-- 流程：回复(Yes) → 展开三选一面板 -->
+          <button class="btn ${inv.replying ? 'btn-vi' : 'btn-am'}" style="flex:1"
+            onclick="toggleReply(${inv.id})">
+            ${inv.replying ? '▲ 收起' : '↩ 回复邀请'}
+          </button>
+          <!-- 流程：回复(No) → 稍后 -->
+          <button class="btn btn-ghost btn-sm" onclick="skipInvite(${inv.id})">稍后</button>
+        </div>
+      </div>
+
+      <!-- 三选一回复面板 -->
+      ${inv.replying ? `
+      <div class="reply-panel">
+        <div class="reply-panel-lbl">选择回复方式</div>
+        <div class="reply-opts">
+          ${REPLY_OPTIONS.map(opt => `
+            <div class="reply-opt${inv.replyType === opt.key ? ' ' + opt.selCls : ''}"
+              onclick="setReplyType(${inv.id}, '${opt.key}')">
+              <span style="font-size:13px;color:${opt.color}">${opt.icon}</span>
+              <div>
+                <div class="reply-opt-name" style="${inv.replyType === opt.key ? `color:${opt.color}` : ''}">${opt.label}</div>
+                <div class="reply-opt-desc">${opt.desc}</div>
+              </div>
+              ${inv.replyType === opt.key ? `
+              <div class="reply-check">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${opt.color}" stroke-width="2.5">
+                  <path d="M5 12l4 4L19 8"/>
+                </svg>
+              </div>` : ''}
+            </div>`).join('')}
+        </div>
+        <textarea
+          class="reply-textarea"
+          id="reply-text-${inv.id}"
+          placeholder="${inv.replyType === 'signal' ? '写下你的信号弹内容…' : '写下你的回复…'}"
+          oninput="setReplyText(${inv.id}, this.value)"
+        >${inv.replyText}</textarea>
+        <button
+          class="btn ${inv.replyType && inv.replyText.trim() ? 'btn-vi' : 'btn-ghost'}"
+          style="width:100%"
+          onclick="submitReply(${inv.id})"
+          ${!inv.replyType || !inv.replyText.trim() ? 'disabled' : ''}>
+          发送回复 ↑
+        </button>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+/* 展开/收起回复面板 */
+function toggleReply(inviteId) {
+  const inv = state.invites.find(i => i.id === inviteId);
+  if (inv) { inv.replying = !inv.replying; renderPanel(); }
+}
+
+/* 选择回复类型 — 三条分支 */
+function setReplyType(inviteId, type) {
+  const inv = state.invites.find(i => i.id === inviteId);
+  if (inv) {
+    inv.replyType = type;
+    renderPanel();
+    // 恢复 textarea 内容（rerender 后 DOM 重建）
+    setTimeout(() => {
+      const el = document.getElementById(`reply-text-${inviteId}`);
+      if (el && inv.replyText) el.value = inv.replyText;
+    }, 10);
+  }
+}
+
+/* 实时保存 textarea 内容 */
+function setReplyText(inviteId, val) {
+  const inv = state.invites.find(i => i.id === inviteId);
+  if (inv) inv.replyText = val;
+}
+
+/* 流程：回复(No) → 跳过此邀请 */
+function skipInvite(inviteId) {
+  state.invites = state.invites.filter(i => i.id !== inviteId);
+  renderPanel();
+}
+
+/* 提交回复 — 三选一最终执行 */
+function submitReply(inviteId) {
+  const inv = state.invites.find(i => i.id === inviteId);
+  if (!inv || !inv.replyType || !inv.replyText.trim()) return;
+  const labels = { private:'私信', public:'公开回复', signal:'新信号弹' };
+  showToast(`${labels[inv.replyType]}已发送 ✓`, 'violet');
+  inv.submitted = true;
+  inv.replying  = false;
+  renderPanel();
+  // 延迟移除已提交卡片
+  setTimeout(() => {
+    state.invites = state.invites.filter(i => i.id !== inviteId);
+    renderPanel();
+  }, 900);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL D — 礼物 / 阅后感
+   流程：直接展示，无分支逻辑
+═══════════════════════════════════════════════════════════════ */
+function renderGifts() {
+  return state.gifts.map(gift => `
+    <div class="card gift"
+      onmouseenter="this.style.borderColor='rgba(196,168,90,.35)'"
+      onmouseleave="this.style.borderColor='var(--bd)'">
+      <div class="card-glow" style="background:radial-gradient(circle,rgba(196,168,90,.06) 0%,transparent 70%)"></div>
+      <div class="sender-row">
+        ${avatarSVG(gift.from, 28)}
+        <div class="sender-info">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sender-name">${gift.ens || truncAddr(gift.from)}</span>
+            <span class="badge badge-am">${gift.type}</span>
+          </div>
+          <div class="sender-time">${fmtDate(gift.ts)} · ${gift.article}</div>
+        </div>
+      </div>
+      <p class="gift-quote">${gift.message}</p>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL ROUTER
+═══════════════════════════════════════════════════════════════ */
+function getPanelContent() {
+  const tab = state.activeTab;
+
+  if (tab === 'signals') return `
+    <div class="sec-hdr">
+      <div class="sec-left">
+        <span style="color:var(--am)">✦</span>
+        <span class="sec-title-text">发出的信号弹</span>
+      </div>
+      <span class="sec-count">${state.signals.length}</span>
+    </div>
+    <div class="divider" style="background:linear-gradient(to right,rgba(196,168,90,.5),rgba(155,127,212,.2),transparent)"></div>
+    <div class="card-list">${renderSignals()}</div>`;
+
+  if (tab === 'answers') return `
+    <div class="sec-hdr">
+      <div class="sec-left">
+        <span style="color:var(--vi)">◎</span>
+        <span class="sec-title-text">收到的回答</span>
+      </div>
+      <span class="sec-count">${state.answers.length}</span>
+    </div>
+    <div class="divider" style="background:linear-gradient(to right,rgba(155,127,212,.5),rgba(196,168,90,.2),transparent)"></div>
+    <div class="card-list">${renderAnswers()}</div>`;
+
+  if (tab === 'invites') return `
+    <div class="sec-hdr">
+      <div class="sec-left">
+        <span style="color:var(--am)">◈</span>
+        <span class="sec-title-text">待处理邀请</span>
+      </div>
+      <span class="sec-count">${state.invites.filter(i => !i.submitted).length}</span>
+    </div>
+    <div class="divider" style="background:linear-gradient(to right,rgba(196,168,90,.5),rgba(155,127,212,.2),transparent)"></div>
+    <div class="card-list">${renderInvites()}</div>`;
+
+  if (tab === 'gifts') return `
+    <div class="sec-hdr">
+      <div class="sec-left">
+        <span style="color:var(--am)">♦</span>
+        <span class="sec-title-text">礼物 · 阅后感</span>
+      </div>
+      <span class="sec-count">${state.gifts.length}</span>
+    </div>
+    <div class="divider" style="background:linear-gradient(to right,rgba(196,168,90,.5),rgba(155,127,212,.2),transparent)"></div>
+    <div class="card-list">${renderGifts()}</div>`;
+
+  return '';
+}
+
+/** Repaint only the active panel (avoid full-page reflow) */
+function renderPanel() {
+  const panel = document.getElementById('panel');
+  if (panel) panel.innerHTML = getPanelContent();
+  // Re-attach live countdowns for authorized answers
+  state.answers.forEach(a => {
+    if (a.status === 'authorized') startCountdownFor(a.id);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  state.activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  renderPanel();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVBAR — WALLET DROPDOWN
+═══════════════════════════════════════════════════════════════ */
+function toggleDD() {
+  state.ddOpen = !state.ddOpen;
+  document.getElementById('dd-menu').style.display = state.ddOpen ? 'block' : 'none';
+}
+
+document.addEventListener('click', (e) => {
+  if (state.ddOpen
+    && !e.target.closest('#wallet-pill')
+    && !e.target.closest('#dd-menu')) {
+    state.ddOpen = false;
+    document.getElementById('dd-menu').style.display = 'none';
+  }
+});
+
+function copyAddr() {
+  navigator.clipboard.writeText(WALLET).then(() => {
+    const btn = document.getElementById('copy-btn');
+    if (btn) { btn.textContent = '✓  已复制'; }
+    showToast('地址已复制 ✓');
+    setTimeout(() => { if (btn) btn.textContent = '⎘ \u00A0复制地址'; }, 1800);
+  });
+}
+
+function openEtherscan() {
+  window.open(`https://etherscan.io/address/${WALLET}`, '_blank');
+  toggleDD();
+}
+
+function handleDisconnect() {
+  showToast('已断开连接', 'red');
+  toggleDD();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════ */
+(function init() {
+  // Populate wallet UI
+  document.getElementById('nav-avatar').innerHTML    = genAvatar(WALLET, 22);
+  document.getElementById('nav-ens').textContent     = ENS;
+  document.getElementById('dd-full-addr').textContent = WALLET;
+  document.getElementById('profile-avatar').innerHTML = genAvatar(WALLET, 62);
+  document.getElementById('profile-ens').textContent  = ENS;
+  document.getElementById('profile-addr-short').textContent = truncAddr(WALLET);
+
+  // Render stats and initial panel
+  renderStats();
+  renderPanel();
+
+  // Close modal on overlay-click
+  document.getElementById('delete-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+  });
+})();
+</script>
+</body>
+</html>
