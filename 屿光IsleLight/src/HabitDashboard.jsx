@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, X, Zap, ArrowLeft, MessageSquare, Calendar, Trash2, Palette, Link as LinkIcon, Share2, Wallet, Download, Grid, Globe, Lock, FileJson, FileSpreadsheet } from 'lucide-react';
+import { Plus, X, Zap, ArrowLeft, MessageSquare, Calendar, Trash2, Palette, Link as LinkIcon, Share2, Wallet, Download, Grid, Globe, Lock, FileJson, FileSpreadsheet, Compass, User } from 'lucide-react';
 import { ethers } from 'ethers';
+import { useAccount } from 'wagmi';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from './config/contract';
 
 // --- 工具函数：Hex 转 RGBA ---
@@ -19,14 +20,22 @@ const hexToRGBA = (hex, alpha = 1) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const HabitDashboard = () => {
+const HabitDashboard = ({ onNavigateToExplore }) => {
   // --- 状态管理 ---
   const [habits, setHabits] = useState(() => {
     const saved = localStorage.getItem('IsleLightHabits_v2');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [account, setAccount] = useState(null);
+  // 使用 wagmi 的 useAccount hook 获取钱包地址
+  const { address: account, isConnected } = useAccount();
+  
+  // 身份状态
+  const [hasIdentity, setHasIdentity] = useState(false);
+  const [identityLoading, setIdentityLoading] = useState(false);
+  const [showIdentityModal, setShowIdentityModal] = useState(false);
+  const [nickname, setNickname] = useState('');
+  
   const [selectedHabit, setSelectedHabit] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -42,48 +51,74 @@ const HabitDashboard = () => {
     document.title = "IsleLight - 你的习惯岛屿";
   }, [habits]);
 
-  // --- 区块链逻辑 ---
-  const connectWallet = async () => {
-    if (window.ethereum) {
+  // --- 检查用户身份 ---
+  useEffect(() => {
+    const checkIdentity = async () => {
+      if (!account || !window.ethereum) {
+        setHasIdentity(false);
+        return;
+      }
+      
+      setIdentityLoading(true);
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setAccount(accounts[0]);
-      } catch (error) { alert("用户拒绝连接钱包"); }
-    } else { alert("请安装 MetaMask 钱包！"); }
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+        const hasId = await contract.hasIdentity(account);
+        setHasIdentity(hasId);
+      } catch (error) {
+        console.error("检查身份失败:", error);
+        setHasIdentity(false);
+      } finally {
+        setIdentityLoading(false);
+      }
+    };
+    
+    checkIdentity();
+  }, [account]);
+
+  // --- 创建身份 ---
+  const handleCreateIdentity = async () => {
+    if (!nickname.trim()) {
+      alert("请输入昵称");
+      return;
+    }
+    
+    setIsSyncing(true);
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      
+      const tx = await contract.createIdentity(nickname.trim());
+      await tx.wait();
+      
+      setHasIdentity(true);
+      setShowIdentityModal(false);
+      setNickname('');
+      alert(`🎉 欢迎来到 IsleLight，${nickname}！\n你现在可以创建公开岛屿了。`);
+    } catch (error) {
+      console.error("创建身份失败:", error);
+      alert("创建身份失败: " + (error.reason || "未知错误"));
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  const getContract = async () => {
+  // --- 区块链逻辑 ---
+  const getContract = async (requireSigner = true) => {
     if (!window.ethereum) return null;
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    if (requireSigner) {
+      const signer = provider.getSigner();
+      return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    }
+    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
   };
 
-  const syncThoughtToChain = async (habitName, record) => {
-    if (!account) return alert("请先连接钱包");
-    if (!record.thought) return alert("想法为空，无法上链");
-    setIsSyncing(true);
-    try {
-      const contract = await getContract();
-      const tx = await contract.recordThought(habitName, record.thought, record.time);
-      await tx.wait();
-      alert("想法已成功永久上链！交易哈希: " + tx.hash);
-    } catch (error) {
-      alert("上链失败: " + (error.reason || "未知错误"));
-    } finally { setIsSyncing(false); }
-  };
-
-  const syncProgressToChain = async (habit) => {
-    if (!account) return alert("请先连接钱包");
-    setIsSyncing(true);
-    try {
-      const contract = await getContract();
-      const tx = await contract.recordProgress(habit.name, habit.current, habit.target);
-      await tx.wait();
-      alert("进度数据已同步至区块链！");
-    } catch (error) {
-      alert("同步失败");
-    } finally { setIsSyncing(false); }
+  const getReadOnlyContract = () => {
+    if (!window.ethereum) return null;
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
   };
 
   // --- 创建公开习惯并上链 ---
@@ -92,6 +127,12 @@ const HabitDashboard = () => {
       alert("请先连接钱包以创建公开岛屿");
       return false;
     }
+    
+    if (!hasIdentity) {
+      setShowIdentityModal(true);
+      return false;
+    }
+    
     setIsSyncing(true);
     try {
       const contract = await getContract();
@@ -115,6 +156,12 @@ const HabitDashboard = () => {
       alert("请先连接钱包");
       return false;
     }
+    
+    if (!hasIdentity) {
+      setShowIdentityModal(true);
+      return false;
+    }
+    
     setIsSyncing(true);
     try {
       const contract = await getContract();
@@ -156,12 +203,10 @@ const HabitDashboard = () => {
     const habitId = Date.now();
     const newHabitData = { ...newHabit, id: habitId, current: 0, streak: 0, records: [], isOnChain: false };
     
-    // 先保存到本地
     setHabits(prev => [...prev, newHabitData]);
     setShowAddModal(false);
     setNewHabit({ name: '', icon: '🌱', target: 0, color: ['#8B5CF6', '#A78BFA', '#C4B5FD'], isPrivate: true });
     
-    // 如果是公开习惯，尝试上链
     if (newHabit.isPrivate === false) {
       if (!account) {
         alert("⚠️ 公开岛屿需要连接钱包才能上链。\n岛屿已保存到本地，连接钱包后可手动上链。");
@@ -170,7 +215,6 @@ const HabitDashboard = () => {
       
       const success = await createLighthouseOnChain(habitId, newHabit.name);
       if (success) {
-        // 更新习惯的上链状态
         setHabits(prev => prev.map(h => 
           h.id === habitId ? { ...h, isOnChain: true } : h
         ));
@@ -234,7 +278,6 @@ const HabitDashboard = () => {
       link.click();
       URL.revokeObjectURL(url);
     } else if (format === 'csv') {
-      // CSV 格式
       let csvContent = '习惯名称,图标,隐私状态,上链状态,目标,当前进度,连胜天数,打卡时间,打卡日期,想法备注\n';
       
       habits.forEach(habit => {
@@ -274,7 +317,6 @@ const HabitDashboard = () => {
         }
       });
       
-      // 添加 BOM 以支持中文
       const BOM = '\uFEFF';
       const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -293,7 +335,6 @@ const HabitDashboard = () => {
     ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = color; ctx.font = '20px Arial';
     ctx.fillText(`${habitName} - 航行能量图`, 40, 50);
-    // 简易绘制示意
     for(let i=0; i<60; i++) {
         ctx.fillStyle = i % 3 === 0 ? color : '#1e1e3e';
         ctx.fillRect(40 + (i%15)*30, 80 + Math.floor(i/15)*30, 20, 20);
@@ -394,11 +435,6 @@ const HabitDashboard = () => {
                     <div className="record-top">
                         <span className="record-time">{record.time}</span>
                         <div className="record-actions">
-                        {record.thought && (
-                            <button className="onchain-btn" onClick={() => syncThoughtToChain(habit.name, record)} title="存入区块链">
-                            <LinkIcon size={14} /> 上链
-                            </button>
-                        )}
                         <button className="edit-thought-btn" onClick={() => { setEditingId(record.id); setTempThought(record.thought); }}>
                             <MessageSquare size={14} />
                         </button>
@@ -449,9 +485,24 @@ const HabitDashboard = () => {
             <p>在宇宙星尘中点亮你的习惯 🌌</p>
           </div>
           <div className="header-right">
-            <button className={`wallet-btn ${account ? 'connected' : ''}`} onClick={connectWallet}>
+            {/* 钱包状态显示 */}
+            <div className={`wallet-status ${isConnected ? 'connected' : ''}`}>
               <Wallet size={18} />
-              <span>{account ? `${account.substring(0, 6)}...${account.substring(38)}` : "连接钱包"}</span>
+              {identityLoading ? (
+                <span>检测身份中...</span>
+              ) : isConnected ? (
+                <span>
+                  {account.substring(0, 6)}...{account.substring(38)}
+                  {hasIdentity && <span className="identity-badge">✓</span>}
+                </span>
+              ) : (
+                <span>未连接钱包</span>
+              )}
+            </div>
+            {/* 探索页面入口 */}
+            <button className="explore-btn" onClick={onNavigateToExplore}>
+              <Compass size={18} />
+              <span>探索</span>
             </button>
             {habits.length > 0 && (
               <div className="export-wrapper">
@@ -520,6 +571,41 @@ const HabitDashboard = () => {
         </div>
       </div>
 
+      {/* 身份注册弹窗 */}
+      {showIdentityModal && (
+        <div className="modal-overlay" onClick={() => setShowIdentityModal(false)}>
+          <div className="identity-modal" onClick={e => e.stopPropagation()}>
+            <div className="identity-modal-header">
+              <User size={40} className="identity-icon" />
+              <h2>注册岛屿身份</h2>
+              <p>在 IsleLight 宇宙中创建你的身份，开启公开岛屿之旅</p>
+            </div>
+            <div className="identity-modal-body">
+              <label>你的昵称</label>
+              <input 
+                type="text" 
+                placeholder="输入你在链上的昵称..." 
+                value={nickname} 
+                onChange={e => setNickname(e.target.value)}
+                maxLength={20}
+              />
+              <p className="hint">昵称将永久记录在区块链上，无法修改</p>
+            </div>
+            <div className="identity-modal-footer">
+              <button className="cancel-btn" onClick={() => setShowIdentityModal(false)}>取消</button>
+              <button 
+                className="confirm-btn" 
+                onClick={handleCreateIdentity}
+                disabled={isSyncing || !nickname.trim()}
+              >
+                {isSyncing ? '正在注册...' : '确认注册'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新建习惯弹窗 */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="nature-modal-horizontal" onClick={e => e.stopPropagation()}>
@@ -614,8 +700,11 @@ const HabitDashboard = () => {
         .brand-box p { color: rgba(255,255,255,0.4); font-size: 14px; }
 
         .header-right { display: flex; gap: 15px; }
-        .wallet-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 18px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; transition: 0.3s; }
-        .wallet-btn.connected { border-color: #10B981; color: #10B981; background: rgba(16,185,129,0.1); }
+        .wallet-status { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); padding: 10px 18px; border-radius: 14px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .wallet-status.connected { border-color: #10B981; color: #10B981; background: rgba(16,185,129,0.1); }
+        .identity-badge { margin-left: 6px; font-size: 10px; }
+        .explore-btn { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.5); color: #a5b4fc; padding: 10px 18px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; transition: 0.3s; }
+        .explore-btn:hover { background: rgba(99,102,241,0.3); transform: translateY(-2px); }
         .main-add-btn { background: white; color: #020208; border: none; padding: 12px 22px; border-radius: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.3s; }
         .export-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 18px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; transition: 0.3s; }
         .export-btn:hover { background: rgba(255,255,255,0.1); }
@@ -652,6 +741,37 @@ const HabitDashboard = () => {
         .quick-check-btn { border: none; padding: 8px 20px; border-radius: 20px; color: white; font-weight: 800; cursor: pointer; transition: 0.3s; font-size: 13px; }
         .quick-check-btn:hover { filter: brightness(1.2); transform: scale(1.05); }
 
+        /* 身份注册弹窗 */
+        .identity-modal { 
+          background: linear-gradient(135deg, #1a1a3e 0%, #0a0a2e 100%);
+          border: 1px solid rgba(99, 102, 241, 0.3);
+          border-radius: 30px;
+          padding: 40px;
+          max-width: 420px;
+          width: 90%;
+          animation: pop 0.3s ease-out;
+        }
+        .identity-modal-header { text-align: center; margin-bottom: 30px; }
+        .identity-icon { color: #a5b4fc; margin-bottom: 15px; }
+        .identity-modal-header h2 { margin: 0 0 10px 0; font-size: 1.5rem; }
+        .identity-modal-header p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
+        .identity-modal-body label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 10px; color: #a5b4fc; }
+        .identity-modal-body input { 
+          width: 100%; padding: 14px 18px; border-radius: 15px; 
+          border: 1px solid rgba(99, 102, 241, 0.3); 
+          background: rgba(255,255,255,0.05); 
+          color: white; font-size: 16px; outline: none;
+        }
+        .identity-modal-body input:focus { border-color: #6366f1; }
+        .identity-modal-body .hint { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 10px; }
+        .identity-modal-footer { display: flex; gap: 15px; margin-top: 30px; }
+        .identity-modal-footer button { flex: 1; padding: 14px; border-radius: 14px; font-weight: 700; cursor: pointer; transition: 0.3s; }
+        .cancel-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; }
+        .cancel-btn:hover { background: rgba(255,255,255,0.15); }
+        .confirm-btn { background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: white; }
+        .confirm-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(99,102,241,0.3); }
+        .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
         /* 横向弹窗样式 */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 2000; }
         .nature-modal-horizontal { 
@@ -673,23 +793,20 @@ const HabitDashboard = () => {
         .target-pill button { width: 34px; height: 34px; border-radius: 50%; border: none; background: white; font-weight: 900; cursor: pointer; }
         .target-pill input { width: 80px; text-align: center; border: none; background: none; font-weight: 800; }
 
-        .confirm-fancy { margin-top: 20px; padding: 18px; border-radius: 18px; border: none; background: #1a1a3e; color: white; font-weight: 800; cursor: pointer; transition: 0.3s; }
-        .confirm-fancy:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .cancel-simple { background: none; border: none; color: #999; font-size: 13px; cursor: pointer; }
-
-        /* 公开/私密开关样式 */
         .privacy-toggle { display: flex; gap: 10px; }
         .privacy-btn { flex: 1; padding: 12px; border-radius: 12px; border: 2px solid #eee; background: #f9f9f9; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; transition: 0.2s; }
         .privacy-btn.active { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
         .privacy-hint { font-size: 11px; color: #999; margin-top: 8px; line-height: 1.4; }
         
-        /* 习惯卡片上的公开/私密标识 */
         .privacy-badge { position: absolute; top: 25px; left: 25px; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: flex; align-items: center; gap: 3px; }
         .privacy-badge.public { background: rgba(99,102,241,0.2); color: #a5b4fc; }
         .privacy-badge.private { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
         
-        /* 已上链标识 */
         .onchain-badge { font-size: 9px; padding: 2px 6px; border-radius: 8px; background: rgba(16,185,129,0.2); color: #34D399; display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }
+
+        .confirm-fancy { margin-top: 20px; padding: 18px; border-radius: 18px; border: none; background: #1a1a3e; color: white; font-weight: 800; cursor: pointer; transition: 0.3s; }
+        .confirm-fancy:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+        .cancel-simple { background: none; border: none; color: #999; font-size: 13px; cursor: pointer; }
 
         /* 详情页记录 */
         .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -715,8 +832,10 @@ const HabitDashboard = () => {
         .record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .record-time { font-size: 12px; color: #555; font-family: monospace; }
         .record-actions { display: flex; gap: 12px; }
-        .onchain-btn { background: rgba(16,185,129,0.1); border: 1px solid #10B981; color: #34D399; font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+        .edit-thought-btn, .record-delete-small-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 5px; }
+        .edit-thought-btn:hover, .record-delete-small-btn:hover { color: white; }
         .record-thought { margin: 0; font-size: 14px; line-height: 1.6; color: #eee; }
+        .empty-hint { color: rgba(255,255,255,0.3); font-style: italic; }
         .thought-editor textarea { width: 100%; background: #000; border: 1px solid #333; color: white; padding: 10px; border-radius: 10px; min-height: 70px; resize: none; outline: none; }
         .editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
         .editor-actions button { padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; border: none; }
@@ -725,6 +844,7 @@ const HabitDashboard = () => {
         .empty-islands-box { grid-column: 1/-1; padding: 60px; border: 2px dashed rgba(255,255,255,0.1); border-radius: 40px; text-align: center; cursor: pointer; opacity: 0.6; }
         .empty-islands-box:hover { opacity: 1; border-color: white; background: rgba(255,255,255,0.02); }
         .empty-plus { font-size: 40px; margin-bottom: 10px; }
+        .empty-logs { text-align: center; color: rgba(255,255,255,0.3); padding: 40px; }
 
         @media (max-width: 600px) {
           .nature-modal-horizontal { flex-direction: column; padding: 25px; height: 90vh; overflow-y: auto; }

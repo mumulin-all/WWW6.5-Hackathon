@@ -4,6 +4,7 @@ import { useAccount, useDisconnect } from 'wagmi';
 import { Copy, Check, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import HabitDashboard from './HabitDashboard';
+import ExplorePage from './ExplorePage';
 import './index.css';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
   const { disconnect } = useDisconnect();
   const [showWalletMenu, setShowWalletMenu] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' | 'explore'
   const walletMenuRef = useRef(null);
 
   useEffect(() => {
@@ -118,7 +120,11 @@ function App() {
       </div>
 
       {/* 主页面内容 */}
-      <HabitDashboard />
+      {currentPage === 'dashboard' ? (
+        <HabitDashboard onNavigateToExplore={() => setCurrentPage('explore')} />
+      ) : (
+        <ExplorePage onBack={() => setCurrentPage('dashboard')} />
+      )}
     </motion.div>
   );
 }
