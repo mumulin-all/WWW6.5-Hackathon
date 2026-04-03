@@ -31,14 +31,11 @@ function isValidEvmAddress(address: string): boolean {
 export class AuthController {
   /**
    * 提交 Offer Letter 并签发凭证
-   * 当前为 hackathon demo 模式：
-   * - 保留“上传图片 + 提交验证”的前端交互
-   * - 暂时跳过真实 OCR / AI 真伪判断
-   * - 直接进入凭证签发流程，保证后续 SBT 链路可联调
+   * 使用 AI 识别图片是否为有效的 Offer Letter
    */
   static async submitOffer(req: Request, res: Response) {
     try {
-      console.log('DEMO MOCK submitOffer is running');
+      console.log('Processing Offer Letter submission with AI identification');
 
       const file = req.file;
       const userAddress = String(req.body?.userAddress ?? '').trim();
@@ -55,15 +52,18 @@ export class AuthController {
         return res.status(400).json(errorResponse('钱包地址格式不正确'));
       }
 
-      // Hackathon demo mode:
-      // 暂时不做真实 OCR/AI 校验，固定返回通过结果，
-      // 目的是保证“提交 Offer -> 签发凭证 -> 前端铸造 SBT”主链路打通。
-      const ocrResult = {
-        companyName: 'Hackathon Demo Company',
-        isValid: true,
-        expireDate: '',
-      };
+      // 将上传的文件转换为 base64
+      const base64Image = file.buffer.toString('base64');
 
+      // 使用 AI 识别 Offer Letter
+      const ocrResult = await AuthService.extractOfferInfo(base64Image);
+
+      // 如果 AI 判断不是有效的 Offer Letter，返回错误
+      if (!ocrResult.isValid) {
+        return res.status(400).json(errorResponse('上传的图片不是有效的 Offer Letter，请上传正确的实习/入职 offer'));
+      }
+
+      // 签发凭证
       const credential = await AuthService.issueCredential(userAddress, ocrResult);
 
       return res.json(
@@ -174,3 +174,4 @@ export class AuthController {
 // multer upload：负责接住上传文件
 // AuthController.submitOffer：负责入参校验和 orchestration
 // AuthService.issueCredential：负责真正的业务逻辑
+
