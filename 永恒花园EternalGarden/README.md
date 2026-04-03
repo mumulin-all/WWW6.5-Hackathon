@@ -8,14 +8,13 @@
 
 ## 仓库目录
 
-本队代码位于仓库根目录 **`永恒花园EternalGarden/`**。**`src` 与 `backend`、`ui` 平级**；仅 **`contracts`** 放在 `src/` 下。结构如下：
+本队代码位于仓库根目录 **`永恒花园EternalGarden/`**。**`contracts`、`backend`、`ui` 三者平级**（与 `docs` 同为队目录下的顶层子目录）。结构如下：
 
 ```text
 永恒花园EternalGarden/
 ├── README.md
 ├── docs/
-├── src/
-│   └── contracts/            # 合约相关代码
+├── contracts/                # 合约相关代码
 ├── backend/                  # 后端相关代码
 └── ui/                       # 前端相关代码（Next.js 主应用）
 ```
@@ -110,7 +109,7 @@ npm start
 |------|------|
 | `ui/app/` | Next.js 页面与组件 |
 | `ui/static-web/` | 无构建链路的静态 HTML/JS 副本，便于纯静态托管或教学演示 |
-| `src/contracts/` | Solidity 合约 |
+| `contracts/` | Solidity 合约 |
 | `backend/` | 独立后端（占位说明） |
 | `docs/` | 文档与部署说明 |
 

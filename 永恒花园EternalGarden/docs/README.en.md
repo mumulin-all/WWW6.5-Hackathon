@@ -92,8 +92,7 @@ The full narrative is in the Chinese business plan document: *「永恒花园」
 永恒花园EternalGarden/
 ├── README.md
 ├── docs/
-├── src/
-│   └── contracts/
+├── contracts/
 ├── backend/
 └── ui/
 ```
@@ -102,7 +101,7 @@ The full narrative is in the Chinese business plan document: *「永恒花园」
 |------|------|
 | `ui/app/` | Next.js routes and UI |
 | `ui/static-web/` | Static HTML/JS variant without the Next toolchain |
-| `src/contracts/` | Solidity contracts |
+| `contracts/` | Solidity contracts |
 | `backend/` | Standalone backend (placeholder) |
 | `docs/` | Docs and deployment notes |
 
