@@ -2,7 +2,26 @@
 
 > 基于 Web3 的女性友好临终关怀与数字遗产社区 —— 让生命在数字世界温柔延续。
 
-**English:** [README.en.md](./README.en.md)
+**English:** [README.en.md](./docs/README.en.md)
+
+---
+
+## 仓库目录（赛会 `projects` 模板）
+
+本队代码位于 **`projects/eternal-garden/`**，结构如下：
+
+```text
+projects/eternal-garden/
+├── README.md                 # 本文件（项目总览）
+├── docs/                     # 文档、部署说明；大文件请放外链勿直传仓库
+│   ├── README.md
+│   ├── README.en.md
+│   └── VERCEL_DEPLOY.md
+└── src/
+    ├── ui/                   # Next.js 前端（主应用）
+    ├── contracts/            # 智能合约源码
+    └── backend/              # 独立后端（当前仅占位说明）
+```
 
 ---
 
@@ -47,14 +66,14 @@
 | Web3 | wagmi、viem、RainbowKit |
 | 链环境 | Avalanche Fuji（测试网）；计划书亦提及 L2 / Polygon 等扩展方向 |
 | 样式 | Tailwind CSS |
-| 静态演示 | `static-web/` 目录下纯 HTML/CSS/JS 版本（可选） |
+| 静态演示 | `src/ui/static-web/` 目录下纯 HTML/CSS/JS 版本（可选） |
 
 ---
 
 ## 本地开发
 
 ```bash
-cd 永恒花园EternalGarden
+cd projects/eternal-garden/src/ui
 npm install
 npm run dev
 ```
@@ -72,7 +91,7 @@ npm start
 
 ## 部署（Vercel）
 
-仓库为 monorepo 时，在 Vercel 中将 **Root Directory** 设为 **`永恒花园EternalGarden`**。详见 [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)。
+仓库为 monorepo 时，在 Vercel 中将 **Root Directory** 设为 **`projects/eternal-garden/src/ui`**。详见 [docs/VERCEL_DEPLOY.md](./docs/VERCEL_DEPLOY.md)。
 
 ---
 
@@ -90,8 +109,10 @@ npm start
 
 | 路径 | 说明 |
 |------|------|
-| `app/` | Next.js 页面与组件 |
-| `static-web/` | 无构建链路的静态 HTML/JS 副本，便于纯静态托管或教学演示 |
+| `src/ui/app/` | Next.js 页面与组件 |
+| `src/ui/static-web/` | 无构建链路的静态 HTML/JS 副本，便于纯静态托管或教学演示 |
+| `src/contracts/` | Solidity 合约 |
+| `docs/` | 文档与部署说明 |
 
 ---
 
