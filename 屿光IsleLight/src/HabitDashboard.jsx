@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, X, Zap, ArrowLeft, MessageSquare, Calendar, Trash2, Palette, Link as LinkIcon, Share2, Wallet, Download, Grid } from 'lucide-react';
+import { Plus, X, Zap, ArrowLeft, MessageSquare, Calendar, Trash2, Palette, Link as LinkIcon, Share2, Wallet, Download, Grid, Globe, Lock, FileJson, FileSpreadsheet } from 'lucide-react';
 import { ethers } from 'ethers';
-
-// --- 合约配置 ---
-const CONTRACT_ADDRESS = "0x2fc9192E29d514De1A496D5b3BAb37E227082BB9";
-const CONTRACT_ABI = [
-  "function recordThought(string habitName, string thought, string timestamp) public",
-  "function recordProgress(string habitName, uint256 currentCount, uint256 target) public"
-];
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from './config/contract';
 
 // --- 工具函数：Hex 转 RGBA ---
 const hexToRGBA = (hex, alpha = 1) => {
@@ -35,11 +29,12 @@ const HabitDashboard = () => {
   const [account, setAccount] = useState(null);
   const [selectedHabit, setSelectedHabit] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const heatmapRef = useRef(null);
 
   const [newHabit, setNewHabit] = useState({
-    name: '', icon: '🌱', target: 0, color: ['#8B5CF6', '#A78BFA', '#C4B5FD']
+    name: '', icon: '🌱', target: 0, color: ['#8B5CF6', '#A78BFA', '#C4B5FD'], isPrivate: true
   });
 
   useEffect(() => {
@@ -91,6 +86,52 @@ const HabitDashboard = () => {
     } finally { setIsSyncing(false); }
   };
 
+  // --- 创建公开习惯并上链 ---
+  const createLighthouseOnChain = async (habitId, habitName) => {
+    if (!account) {
+      alert("请先连接钱包以创建公开岛屿");
+      return false;
+    }
+    setIsSyncing(true);
+    try {
+      const contract = await getContract();
+      const contentHash = String(habitId);
+      const tx = await contract.addLighthouse(contentHash, habitName);
+      await tx.wait();
+      alert(`🏝️ "${habitName}" 已永久上链！\n交易哈希: ${tx.hash}`);
+      return true;
+    } catch (error) {
+      console.error("上链失败:", error);
+      alert("上链失败: " + (error.reason || "未知错误，请检查钱包和网络"));
+      return false;
+    } finally { 
+      setIsSyncing(false); 
+    }
+  };
+
+  // --- 打卡上链 ---
+  const checkInOnChain = async (habitId) => {
+    if (!account) {
+      alert("请先连接钱包");
+      return false;
+    }
+    setIsSyncing(true);
+    try {
+      const contract = await getContract();
+      const contentHash = String(habitId);
+      const tx = await contract.checkIn(contentHash);
+      await tx.wait();
+      alert(`✅ 打卡已上链！\n交易哈希: ${tx.hash}`);
+      return true;
+    } catch (error) {
+      console.error("打卡上链失败:", error);
+      alert("上链失败: " + (error.reason || "未知错误"));
+      return false;
+    } finally { 
+      setIsSyncing(false); 
+    }
+  };
+
   // --- 基础逻辑函数 ---
   const handleQuickCheckIn = (e, habitId) => {
     e.stopPropagation();
@@ -109,11 +150,32 @@ const HabitDashboard = () => {
     }));
   };
 
-  const handleAddHabit = () => {
+  const handleAddHabit = async () => {
     if (!newHabit.name.trim()) return;
-    setHabits([...habits, { ...newHabit, id: Date.now(), current: 0, streak: 0, records: [] }]);
+    
+    const habitId = Date.now();
+    const newHabitData = { ...newHabit, id: habitId, current: 0, streak: 0, records: [], isOnChain: false };
+    
+    // 先保存到本地
+    setHabits(prev => [...prev, newHabitData]);
     setShowAddModal(false);
-    setNewHabit({ name: '', icon: '🌱', target: 0, color: ['#8B5CF6', '#A78BFA', '#C4B5FD'] });
+    setNewHabit({ name: '', icon: '🌱', target: 0, color: ['#8B5CF6', '#A78BFA', '#C4B5FD'], isPrivate: true });
+    
+    // 如果是公开习惯，尝试上链
+    if (newHabit.isPrivate === false) {
+      if (!account) {
+        alert("⚠️ 公开岛屿需要连接钱包才能上链。\n岛屿已保存到本地，连接钱包后可手动上链。");
+        return;
+      }
+      
+      const success = await createLighthouseOnChain(habitId, newHabit.name);
+      if (success) {
+        // 更新习惯的上链状态
+        setHabits(prev => prev.map(h => 
+          h.id === habitId ? { ...h, isOnChain: true } : h
+        ));
+      }
+    }
   };
 
   const updateThought = (habitId, recordId, text) => {
@@ -139,6 +201,89 @@ const HabitDashboard = () => {
   const handleDeleteHabit = (e, habitId) => {
     e.stopPropagation();
     if (window.confirm('确定要让这座岛屿从海面上消失吗？')) setHabits(habits.filter(h => h.id !== habitId));
+  };
+
+  // --- 数据导出功能 ---
+  const exportData = (format = 'json') => {
+    const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    
+    if (format === 'json') {
+      const data = {
+        exportDate: new Date().toISOString(),
+        totalHabits: habits.length,
+        habits: habits.map(h => ({
+          id: h.id,
+          name: h.name,
+          icon: h.icon,
+          color: h.color,
+          isPrivate: h.isPrivate,
+          isOnChain: h.isOnChain,
+          target: h.target,
+          current: h.current,
+          streak: h.streak,
+          createdAt: new Date(h.id).toISOString(),
+          records: h.records || []
+        }))
+      };
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `islelight-export-${date}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'csv') {
+      // CSV 格式
+      let csvContent = '习惯名称,图标,隐私状态,上链状态,目标,当前进度,连胜天数,打卡时间,打卡日期,想法备注\n';
+      
+      habits.forEach(habit => {
+        const privacyStatus = habit.isPrivate === false ? '公开' : '私密';
+        const chainStatus = habit.isOnChain ? '已上链' : '未上链';
+        
+        if (habit.records && habit.records.length > 0) {
+          habit.records.forEach(record => {
+            const row = [
+              `"${habit.name}"`,
+              habit.icon,
+              privacyStatus,
+              chainStatus,
+              habit.target || 0,
+              habit.current || 0,
+              habit.streak || 0,
+              `"${record.time || ''}"`,
+              `"${record.date || ''}"`,
+              `"${(record.thought || '').replace(/"/g, '""')}"`
+            ].join(',');
+            csvContent += row + '\n';
+          });
+        } else {
+          const row = [
+            `"${habit.name}"`,
+            habit.icon,
+            privacyStatus,
+            chainStatus,
+            habit.target || 0,
+            habit.current || 0,
+            habit.streak || 0,
+            '',
+            '',
+            ''
+          ].join(',');
+          csvContent += row + '\n';
+        }
+      });
+      
+      // 添加 BOM 以支持中文
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `islelight-export-${date}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const exportHeatmapAsPNG = (habitName, color) => {
@@ -214,9 +359,24 @@ const HabitDashboard = () => {
             <div className="detail-main-info">
               <span className="detail-icon-large">{habit.icon}</span>
               <h2>{habit.name}</h2>
-              <button className="chain-sync-btn" onClick={() => syncProgressToChain(habit)}>
-                <Share2 size={14} /> 同步进度至区块链
-              </button>
+              <div className="chain-actions">
+                {habit.isOnChain && <span className="onchain-badge"><LinkIcon size={10} /> 已上链</span>}
+                {habit.isPrivate === false && !habit.isOnChain && (
+                  <button className="chain-sync-btn" onClick={async () => {
+                    const success = await createLighthouseOnChain(habit.id, habit.name);
+                    if (success) {
+                      setHabits(prev => prev.map(h => h.id === habit.id ? { ...h, isOnChain: true } : h));
+                    }
+                  }}>
+                    <Share2 size={14} /> 上链记录岛屿
+                  </button>
+                )}
+                {habit.isPrivate === false && habit.isOnChain && (
+                  <button className="chain-sync-btn" onClick={() => checkInOnChain(habit.id)}>
+                    <Zap size={14} /> 打卡上链
+                  </button>
+                )}
+              </div>
             </div>
           </header>
 
@@ -293,6 +453,24 @@ const HabitDashboard = () => {
               <Wallet size={18} />
               <span>{account ? `${account.substring(0, 6)}...${account.substring(38)}` : "连接钱包"}</span>
             </button>
+            {habits.length > 0 && (
+              <div className="export-wrapper">
+                <button className="export-btn" onClick={() => setShowExportMenu(!showExportMenu)}>
+                  <Download size={18} />
+                  <span>导出数据</span>
+                </button>
+                {showExportMenu && (
+                  <div className="export-menu">
+                    <button onClick={() => { exportData('json'); setShowExportMenu(false); }}>
+                      <FileJson size={16} /> JSON 格式
+                    </button>
+                    <button onClick={() => { exportData('csv'); setShowExportMenu(false); }}>
+                      <FileSpreadsheet size={16} /> CSV 格式
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <button className="main-add-btn" onClick={() => setShowAddModal(true)}>
               <Plus size={20} /> <span>唤醒岛屿</span>
             </button>
@@ -311,6 +489,9 @@ const HabitDashboard = () => {
               onClick={() => setSelectedHabit(habit)}
             >
               <button className="card-delete-btn" onClick={(e) => handleDeleteHabit(e, habit.id)}><X size={14} /></button>
+              <div className={`privacy-badge ${habit.isPrivate === false ? 'public' : 'private'}`}>
+                {habit.isPrivate === false ? <><Globe size={10} /> 公开</> : <><Lock size={10} /> 私密</>}
+              </div>
               <div className="card-top">
                 <div className="icon-sphere" style={{ background: `linear-gradient(135deg, ${habit.color[0]}, #fff)` }}>{habit.icon}</div>
                 <div className="name-box">
@@ -377,6 +558,28 @@ const HabitDashboard = () => {
                   <button onClick={() => setNewHabit({...newHabit, target: newHabit.target + 1})}>+</button>
                 </div>
               </div>
+              <div className="input-field">
+                <label>岛屿可见性</label>
+                <div className="privacy-toggle">
+                  <button 
+                    className={`privacy-btn ${newHabit.isPrivate === false ? 'active' : ''}`}
+                    onClick={() => setNewHabit({...newHabit, isPrivate: false})}
+                  >
+                    <Globe size={14} /> 公开
+                  </button>
+                  <button 
+                    className={`privacy-btn ${newHabit.isPrivate === true ? 'active' : ''}`}
+                    onClick={() => setNewHabit({...newHabit, isPrivate: true})}
+                  >
+                    <Lock size={14} /> 私密
+                  </button>
+                </div>
+                <p className="privacy-hint">
+                  {newHabit.isPrivate 
+                    ? '🔒 私密岛屿：仅你可见，数据存储在本地' 
+                    : '🌐 公开岛屿：打卡记录将上链，永久可验证'}
+                </p>
+              </div>
               <button className="confirm-fancy" onClick={handleAddHabit}>开启岛屿新篇章</button>
               <button className="cancel-simple" onClick={() => setShowAddModal(false)}>暂不开启</button>
             </div>
@@ -414,6 +617,12 @@ const HabitDashboard = () => {
         .wallet-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 18px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; transition: 0.3s; }
         .wallet-btn.connected { border-color: #10B981; color: #10B981; background: rgba(16,185,129,0.1); }
         .main-add-btn { background: white; color: #020208; border: none; padding: 12px 22px; border-radius: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.3s; }
+        .export-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 18px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; transition: 0.3s; }
+        .export-btn:hover { background: rgba(255,255,255,0.1); }
+        .export-wrapper { position: relative; }
+        .export-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: rgba(20,20,40,0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden; min-width: 150px; z-index: 100; }
+        .export-menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: none; border: none; color: white; font-size: 13px; cursor: pointer; transition: 0.2s; }
+        .export-menu button:hover { background: rgba(255,255,255,0.1); }
 
         /* 岛屿卡片 */
         .habits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 40px; }
@@ -467,6 +676,20 @@ const HabitDashboard = () => {
         .confirm-fancy { margin-top: 20px; padding: 18px; border-radius: 18px; border: none; background: #1a1a3e; color: white; font-weight: 800; cursor: pointer; transition: 0.3s; }
         .confirm-fancy:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
         .cancel-simple { background: none; border: none; color: #999; font-size: 13px; cursor: pointer; }
+
+        /* 公开/私密开关样式 */
+        .privacy-toggle { display: flex; gap: 10px; }
+        .privacy-btn { flex: 1; padding: 12px; border-radius: 12px; border: 2px solid #eee; background: #f9f9f9; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; transition: 0.2s; }
+        .privacy-btn.active { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
+        .privacy-hint { font-size: 11px; color: #999; margin-top: 8px; line-height: 1.4; }
+        
+        /* 习惯卡片上的公开/私密标识 */
+        .privacy-badge { position: absolute; top: 25px; left: 25px; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: flex; align-items: center; gap: 3px; }
+        .privacy-badge.public { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+        .privacy-badge.private { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+        
+        /* 已上链标识 */
+        .onchain-badge { font-size: 9px; padding: 2px 6px; border-radius: 8px; background: rgba(16,185,129,0.2); color: #34D399; display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }
 
         /* 详情页记录 */
         .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
