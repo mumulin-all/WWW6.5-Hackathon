@@ -7,6 +7,8 @@ import statsRouter from "./stats.js";
 import refineRouter from "./refine.js";
 import summarizeRouter from "./summarize.js";
 import blockchainRouter from "./blockchain.js";
+import previewRouter from "./preview.js";
+import demoRouter from "./demo.js";
 import medalsRouter from "./medals.js";
 
 const router: IRouter = Router();
@@ -19,6 +21,8 @@ router.use(statsRouter);
 router.use(refineRouter);
 router.use(summarizeRouter);
 router.use(blockchainRouter);
+router.use(previewRouter);
+router.use(demoRouter);
 router.use(medalsRouter);
 
 export default router;

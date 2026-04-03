@@ -155,28 +155,6 @@ export async function getAllBadges(): Promise<Badge[]> {
   return assertNoError(data, error, "获取勋章列表失败");
 }
 
-export async function getAllBadgesWithCards(): Promise<Array<{ badge: Badge; cards: Card[]; ores: Ore[] }>> {
-  const db = getDb();
-  const badges = await getAllBadges();
-  const result: Array<{ badge: Badge; cards: Card[]; ores: Ore[] }> = [];
-
-  for (const badge of badges) {
-    const badgeCards = await getBadgeCardsByBadgeId(badge.id);
-    const cardIds = badgeCards.map((bc) => bc.card_id);
-    if (cardIds.length === 0) {
-      result.push({ badge, cards: [], ores: [] });
-      continue;
-    }
-    const cards = await getCardsByIds(cardIds);
-    const cardOres = await getCardOresByCardIds(cardIds);
-    const oreIds = [...new Set(cardOres.map((co) => co.ore_id))];
-    const ores = oreIds.length > 0 ? await getOresByIds(oreIds) : [];
-    result.push({ badge, cards, ores });
-  }
-
-  return result;
-}
-
 export async function getBadgeById(id: number): Promise<Badge | null> {
   const db = getDb();
   const { data, error } = await db.from("badges").select("*").eq("id", id).single();
@@ -235,6 +213,27 @@ export async function insertBadgeCards(rows: { badge_id: number; card_id: number
   const db = getDb();
   const { error } = await db.from("badge_cards").insert(rows);
   if (error) throw new Error(`创建勋章卡片关联失败: ${error.message}`);
+}
+
+export async function getAllBadgesWithCards(): Promise<Array<{ badge: Badge; cards: Card[]; ores: Ore[] }>> {
+  const badges = await getAllBadges();
+  const result: Array<{ badge: Badge; cards: Card[]; ores: Ore[] }> = [];
+
+  for (const badge of badges) {
+    const badgeCards = await getBadgeCardsByBadgeId(badge.id);
+    const cardIds = badgeCards.map((bc) => bc.card_id);
+    if (cardIds.length === 0) {
+      result.push({ badge, cards: [], ores: [] });
+      continue;
+    }
+    const cards = await getCardsByIds(cardIds);
+    const cardOres = await getCardOresByCardIds(cardIds);
+    const oreIds = [...new Set(cardOres.map((co) => co.ore_id))];
+    const ores = oreIds.length > 0 ? await getOresByIds(oreIds) : [];
+    result.push({ badge, cards, ores });
+  }
+
+  return result;
 }
 
 // ─── 格式化工具（camelCase 输出）─────────────────────────────────────────────
@@ -346,6 +345,64 @@ export async function uploadCardImageToSupabase(
   return { path, publicUrl: data.publicUrl };
 }
 
+
+// ─── Preview：Storage 列表 + 主题匹配查询 ────────────────────────────────────
+
+/** 列出 card-images 桶中所有已有图片，解析出 cardId 和公开 URL */
+export async function listCardImagesFromStorage(): Promise<Array<{ cardId: number; publicUrl: string }>> {
+  const supabase = getDb();
+  const { data, error } = await supabase.storage.from(BUCKET_CARD).list("cards", { limit: 1000 });
+  if (error || !data) return [];
+
+  return data.flatMap((file) => {
+    const match = file.name.match(/^card-(\d+)-/);
+    if (!match) return [];
+    const cardId = parseInt(match[1], 10);
+    const { data: urlData } = supabase.storage.from(BUCKET_CARD).getPublicUrl(`cards/${file.name}`);
+    return [{ cardId, publicUrl: urlData.publicUrl }];
+  });
+}
+
+/** 列出 badge-images 桶中所有已有图片，解析出 tokenId 和公开 URL */
+export async function listBadgeImagesFromStorage(): Promise<Array<{ tokenId: string; publicUrl: string }>> {
+  const supabase = getDb();
+  const { data, error } = await supabase.storage.from(BUCKET_BADGE).list("badges", { limit: 1000 });
+  if (error || !data) return [];
+
+  return data.flatMap((file) => {
+    const match = file.name.match(/^(SBT-[A-F0-9]+)-\d+\.png$/);
+    if (!match) return [];
+    const { data: urlData } = supabase.storage.from(BUCKET_BADGE).getPublicUrl(`badges/${file.name}`);
+    return [{ tokenId: match[1], publicUrl: urlData.publicUrl }];
+  });
+}
+
+/** 根据矿石 type 列表，找出关联的所有 cardId */
+export async function getCardIdsByOreTypes(types: string[]): Promise<number[]> {
+  if (types.length === 0) return [];
+  const db = getDb();
+  const { data: ores } = await db.from("ores").select("id").in("type", types);
+  if (!ores || ores.length === 0) return [];
+  const oreIds = (ores as Array<{ id: number }>).map((o) => o.id);
+
+  const { data: cardOres } = await db.from("card_ores").select("card_id").in("ore_id", oreIds);
+  if (!cardOres) return [];
+  return [...new Set((cardOres as Array<{ card_id: number }>).map((co) => co.card_id))];
+}
+
+/** 根据 cardId 列表，找出关联的所有 badge（id + name + token_id） */
+export async function getBadgesByCardIds(
+  cardIds: number[],
+): Promise<Array<{ id: number; name: string; token_id: string }>> {
+  if (cardIds.length === 0) return [];
+  const db = getDb();
+  const { data: badgeCards } = await db.from("badge_cards").select("badge_id").in("card_id", cardIds);
+  if (!badgeCards || badgeCards.length === 0) return [];
+  const badgeIds = [...new Set((badgeCards as Array<{ badge_id: number }>).map((bc) => bc.badge_id))];
+
+  const { data: badges } = await db.from("badges").select("id, name, token_id").in("id", badgeIds);
+  return (badges as Array<{ id: number; name: string; token_id: string }>) ?? [];
+}
 
 /** 测试 Supabase 连接是否正常 */
 export async function testSupabaseConnection(): Promise<boolean> {

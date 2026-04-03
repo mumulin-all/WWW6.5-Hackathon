@@ -4,9 +4,6 @@ import { serverError } from "../utils/response.js";
 
 const router: IRouter = Router();
 
-// ─── GET /medals ─────────────────────────────────────────────────────────────
-// Returns badges (medals) with their associated cards and ores
-
 router.get("/medals", async (req, res) => {
   try {
     const badgesWithCards = await getAllBadgesWithCards();
@@ -21,12 +18,10 @@ router.get("/medals", async (req, res) => {
         id: card.id,
         text: card.name,
         date: card.created_at,
-        ores: ores
-          .filter((ore) => true)
-          .map((ore) => ({
-            date: new Date(ore.created_at).toLocaleDateString(),
-            content: ore.content,
-          })),
+        ores: ores.map((ore) => ({
+          date: new Date(ore.created_at).toLocaleDateString(),
+          content: ore.content,
+        })),
       })),
     }));
 
