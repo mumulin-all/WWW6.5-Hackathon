@@ -8,9 +8,10 @@ const rootRouter = Router();
  * 当前 MVP 主链路相关模块
  */
 //修改接口
-rootRouter.use('/api/auth', authRouter);  // 提交 offer → 签发 credential
-rootRouter.use('/api/ipfs', ipfsRouter);   // 上传 review → 返回 cid + bytes32
-rootRouter.use('/api/ai', aiRouter);       // （如果 OCR / AI 已接入，否则可临时移除）
+rootRouter.use('/auth', authRouter);  // 提交 offer → 签发 credential
+rootRouter.use('/ipfs', ipfsRouter);   // 上传 review → 返回 cid + bytes32
+rootRouter.use('/ai', aiRouter);       // （如果 OCR / AI 已接入，否则可临时移除）
+
 
 export default rootRouter;
 
