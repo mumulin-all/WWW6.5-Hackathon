@@ -1,35 +1,15 @@
-import OpenAI from 'openai';
 import { getAIEnv } from './env';
 
-let _miniMaxOpenAIClient: OpenAI | null = null;
-
-/**
- * OpenAI SDK 指向 MiniMax 兼容端点（Coding Plan / Token Plan 控制台申请的 Key）
- * @see https://platform.minimax.io/docs/api-reference/text-openai-api
- */
-export function getMiniMaxOpenAIClient(): OpenAI {
-  if (_miniMaxOpenAIClient) return _miniMaxOpenAIClient;
-
-  const { MINIMAX_API_KEY, MINIMAX_BASE_URL } = getAIEnv();
-
-  _miniMaxOpenAIClient = new OpenAI({
-    apiKey: MINIMAX_API_KEY,
-    baseURL: MINIMAX_BASE_URL,
-  });
-
-  return _miniMaxOpenAIClient;
-}
-
-interface MiniMaxNativeChatResponse {
+interface MiniMaxChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
   base_resp?: { status_code?: number; status_msg?: string };
 }
 
 /**
- * 原生文本/多模态接口（含图片）。OpenAI 兼容层当前不支持 image 输入。
+ * MiniMax 官方文本接口：纯文本对话与多模态（含图片）均走此端点。
  * @see https://platform.minimax.io/docs/api-reference/text-post
  */
-export async function miniMaxNativeChatCompletion(
+export async function miniMaxChatCompletion(
   body: Record<string, unknown>
 ): Promise<string> {
   const { MINIMAX_API_KEY, MINIMAX_NATIVE_BASE_URL } = getAIEnv();
@@ -46,22 +26,20 @@ export async function miniMaxNativeChatCompletion(
   });
 
   const text = await res.text();
-  let data: MiniMaxNativeChatResponse;
+  let data: MiniMaxChatResponse;
   try {
-    data = JSON.parse(text) as MiniMaxNativeChatResponse;
+    data = JSON.parse(text) as MiniMaxChatResponse;
   } catch {
-    throw new Error(`MiniMax 原生 API 返回非 JSON：${text.slice(0, 200)}`);
+    throw new Error(`MiniMax API 返回非 JSON：${text.slice(0, 200)}`);
   }
 
   if (!res.ok) {
-    throw new Error(`MiniMax 原生 API HTTP ${res.status}：${text.slice(0, 500)}`);
+    throw new Error(`MiniMax API HTTP ${res.status}：${text.slice(0, 500)}`);
   }
 
   const code = data.base_resp?.status_code;
   if (code != null && code !== 0) {
-    throw new Error(
-      `MiniMax 原生 API 错误 ${code}：${data.base_resp?.status_msg ?? ''}`
-    );
+    throw new Error(`MiniMax API 错误 ${code}：${data.base_resp?.status_msg ?? ''}`);
   }
 
   const content = data.choices?.[0]?.message?.content;
