@@ -52,7 +52,7 @@
 
 | **1. 采集晶石** | **2. 炼金精炼** | **3. 身份觉醒** |
 | --- | --- | --- |
-|  |  |  |
+| <img src="https://github.com/user-attachments/assets/c357f48c-9667-4247-a22f-0c20d65e655e" width="100%"> | <img src="https://github.com/user-attachments/assets/9032c333-57ad-429f-bf9f-629e48ea2a03" width="100%"> | <img src="https://github.com/user-attachments/assets/ca5ea008-ffbb-4ce0-b4a9-3d144a07588a" width="100%"> |
 
 > *欢迎访问 **个人主页 (Profile)** 查看动态六维雷达图与进化的勋章墙！*
 > 
@@ -61,13 +61,10 @@
 
 ## 📦 快速开始 (本地运行)
 
-想要在本地启动 Alcheme Demo：
+想要在本地启动 Alcheme Demo，请按照以下步骤操作：
 
-Bash
-
-# 
-
-`# 1. 克隆仓库
+```bash
+# 1. 克隆仓库
 git clone https://github.com/your-username/alcheme.git
 
 # 2. 安装依赖
@@ -75,13 +72,14 @@ cd alcheme
 npm install
 
 # 3. 设置环境变量
-# 创建 .env 文件并添加你的 API Key
-OPENAI_API_KEY=你的Key
+# 在根目录下创建 .env 文件并添加你的 API Key
+echo "OPENAI_API_KEY=你的Key" > .env
 
 # 4. 启动开发服务器
-npm run dev`
+npm run dev
+```
 
-打开 [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) 开启你的炼金之旅。
+打开 [Alcheme Live Demo](https://tux-assist-66534042.figma.site/awaken) 开启你的炼金之旅。
 
 ---
 
