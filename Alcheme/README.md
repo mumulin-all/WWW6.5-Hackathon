@@ -1,8 +1,6 @@
-# README
+# ⚗️ Alcheme (炼金与自我)
 
 ---
-
-# ⚗️ Alcheme (炼金与自我)
 
 > **Refine fragments, awaken true self.** > **精炼碎片，唤醒真我。**
 > 
