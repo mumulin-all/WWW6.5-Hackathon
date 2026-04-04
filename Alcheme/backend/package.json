@@ -1,18 +1,23 @@
 {
-  "name": "workspace",
-  "version": "0.0.0",
-  "license": "MIT",
+  "name": "alcheme-backend",
+  "version": "1.0.0",
+  "description": "Alcheme Backend Service",
+  "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "preinstall": "node -e \"if(process.env.npm_config_user_agent && !process.env.npm_config_user_agent.startsWith('pnpm')){console.error('Error: please use pnpm instead of npm/yarn');process.exit(1)}\"",
-    "start:api": "pnpm --filter @workspace/api-server run dev",
-    "build:api": "pnpm --filter @workspace/api-server run build",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
   },
-  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.20.0",
+    "sharp": "^0.33.0",
+    "uuid": "^9.0.0"
+  },
   "devDependencies": {
-    "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "nodemon": "^3.0.2"
   }
 }
