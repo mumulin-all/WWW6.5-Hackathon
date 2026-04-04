@@ -33,9 +33,12 @@ type BackgroundAudioContextValue = {
 const BackgroundAudioContext =
   createContext<BackgroundAudioContextValue | null>(null);
 
+const basePath =
+  process.env.NODE_ENV === "production" ? "/my-solidity-journey" : "";
+
 const TRACKS: Record<TrackName, string> = {
-  home: "/audio/home-breeze.m4a",
-  checkin: "/audio/checkin-kazamidori.m4a",
+  home: `${basePath}/audio/home-breeze.m4a`,
+  checkin: `${basePath}/audio/checkin-kazamidori.m4a`,
 };
 
 const DEFAULT_VOLUMES: Record<TrackName, number> = {
