@@ -43,7 +43,7 @@
     - **GPT-4o**: 语义提炼、多维成长评分
     - **DALL-E / GPT-Image-1**: 卡牌与勋章艺术图生成
 - **Web3 技术**:
-    - **Solidity**: ERC-721 / ERC-5192 (SBT 协议)
+    - **Solidity**: ERC-721 (SBT 协议)
     - **IPFS**: 去中心化元数据存储
 
 ---
