@@ -1,4 +1,4 @@
-import { getMiniMaxOpenAIClient } from '../config/minimax';
+import { miniMaxChatCompletion } from '../config/minimax';
 
 //service 不自己读 process.env，只消费已经验证过的配置。
 import { getAIEnv } from '../config/env'; //原版：import { env } from '../config/env';
@@ -37,34 +37,16 @@ export class AIService {
     
     const { MINIMAX_MODEL } = getAIEnv();
 
-    const response = await getMiniMaxOpenAIClient().chat.completions.create({
+    const result = await miniMaxChatCompletion({
       model: MINIMAX_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      response_format: { type: 'json_object' },
     });
-
-    const result = response.choices[0]?.message?.content;
-    if (!result) {
-      throw new Error('AI 提取失败，无返回结果');
-    }
 
     let jsonStr = result.trim();
     const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
 
     return JSON.parse(jsonStr) as AIReviewResult;
-    
-    // const response = await getMiniMaxOpenAIClient().chat.completions.create({
-    //   model: env.MINIMAX_MODEL,
-    //   messages: [{ role: 'user', content: prompt }],
-    //   temperature: 0.3,
-    //   response_format: { type: 'json_object' },
-    // });
-
-    // const result = response.choices[0].message.content;
-    // if (!result) throw new Error('AI提取失败，无返回结果');
-
-    // return JSON.parse(result) as AIReviewResult;
   }
 }
